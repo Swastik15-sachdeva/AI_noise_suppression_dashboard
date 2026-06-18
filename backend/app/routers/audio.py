@@ -1,6 +1,8 @@
 import os
 import shutil
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
+import numpy as np
+import noisereduce as nr
 from typing import List
 from app.models.schemas import Alert, AudioUploadResponse
 from app.services import session
@@ -72,3 +74,35 @@ def upload_audio(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process audio: {str(e)}")
+
+@router.websocket("/audio/stream")
+async def audio_stream(websocket: WebSocket):
+    await websocket.accept()
+    print("WebSocket connection established for real-time audio stream")
+    try:
+        while True:
+            # Receive binary chunk (PCM Float32 at 16kHz)
+            data = await websocket.receive_bytes()
+            if not data:
+                break
+            
+            # Convert bytes to numpy Float32 array
+            audio_chunk = np.frombuffer(data, dtype=np.float32)
+            
+            if len(audio_chunk) > 0:
+                # Apply fast stationary noise reduction using noisereduce
+                cleaned_chunk = nr.reduce_noise(
+                    y=audio_chunk,
+                    sr=16000,
+                    stationary=True,
+                    prop_decrease=0.85
+                )
+                
+                # Convert back to raw bytes and send
+                cleaned_bytes = cleaned_chunk.astype(np.float32).tobytes()
+                await websocket.send_bytes(cleaned_bytes)
+                
+    except WebSocketDisconnect:
+        print("WebSocket client disconnected")
+    except Exception as e:
+        print(f"Error in WebSocket audio stream: {str(e)}")

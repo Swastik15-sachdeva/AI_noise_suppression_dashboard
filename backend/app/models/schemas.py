@@ -18,3 +18,9 @@ class Alert(BaseModel):
 class AudioUploadResponse(BaseModel):
     message: str
     status: str
+    noise_type: str
+    voice_clarity: int
+    noise_score: int
+    speech_presence: int
+    audio_quality: int
+    clean_audio_url: str

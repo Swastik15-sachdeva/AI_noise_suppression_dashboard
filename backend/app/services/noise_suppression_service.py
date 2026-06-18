@@ -47,33 +47,30 @@ class NoiseSuppressionService:
             }
         
         try:
-            # Load audio using torchaudio
-            waveform, sample_rate = torchaudio.load(input_path)
+            import librosa
+            import soundfile as sf
             
-            # ConvTasNet expects mono audio at its target sample rate (usually 8000Hz or 16000Hz)
-            if sample_rate != self.bundle.sample_rate:
-                resampler = torchaudio.transforms.Resample(sample_rate, self.bundle.sample_rate)
-                waveform = resampler(waveform)
+            # 1. Load audio using librosa (very robust on Windows for WebM, MP3, WAV, etc.)
+            # It automatically converts to mono and resamples to the model's sample rate (16kHz)
+            y, sr = librosa.load(input_path, sr=self.bundle.sample_rate, mono=True)
             
-            # Convert to mono if it is stereo
-            if waveform.shape[0] > 1:
-                waveform = torch.mean(waveform, dim=0, keepdim=True)
-                
-            waveform = waveform.to(self.device)
+            if len(y) == 0:
+                raise ValueError("Loaded audio file is empty")
             
-            # Perform speech separation
+            # 2. Convert the numpy array to a PyTorch tensor
+            # ConvTasNet expects shape: [batch, channels, time]
+            waveform = torch.from_numpy(y).unsqueeze(0).to(self.device)
+            
+            # 3. Perform speech separation
             with torch.no_grad():
-                # ConvTasNet expects shape [batch, channels, time]
-                # unsqueeze(0) adds the batch dimension
                 separated = self.model(waveform.unsqueeze(0)) # Output shape: [1, num_sources, time]
                 
-                # ConvTasNet splits the mixture into 2 sources (speech, background noise)
-                # Source 0 is typically the primary speech signal
-                clean_waveform = separated[0][0:1].cpu()
+                # Extract the clean speech source (Source 0) and send to CPU
+                clean_waveform = separated[0][0].cpu().numpy()
             
-            # Save the clean processed audio
+            # 4. Save processed clean audio using soundfile (safest writer)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            torchaudio.save(output_path, clean_waveform, self.bundle.sample_rate)
+            sf.write(output_path, clean_waveform, self.bundle.sample_rate)
             
             return {
                 "success": True,

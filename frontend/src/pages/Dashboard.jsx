@@ -5,6 +5,7 @@ import NoiseLevelCard from '../components/NoiseLevelCard';
 import VoiceQualityCard from '../components/VoiceQualityCard';
 import LatencyCard from '../components/LatencyCard';
 import AudioUploadCard from '../components/AudioUploadCard';
+import AudioWaveformCard from '../components/AudioWaveformCard';
 import AlertPanel from '../components/AlertPanel';
 import { healthService, metricsService, audioService } from '../services/api';
 
@@ -74,10 +75,15 @@ const Dashboard = () => {
           <LatencyCard latency={metrics?.latency} />
         </div>
 
-        {/* Main View: Interactive Audio Upload & Alerts Panel */}
+        {/* Main View: Left side has stack of Upload and Visualizer, Right side has Alerts */}
         <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 h-full">
-            <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
+          <div className="md:col-span-2 h-full flex flex-col gap-6">
+            <div className="flex-1 min-h-0">
+              <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
+            </div>
+            <div className="h-[240px] shrink-0">
+              <AudioWaveformCard />
+            </div>
           </div>
           <div className="md:col-span-1 h-full">
             <AlertPanel alerts={alerts} />

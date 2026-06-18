@@ -11,3 +11,5 @@ __pycache__/
 .env
 dist/
 .eslintcache
+generate_test_audio.py
+sample_noisy_audio.wav

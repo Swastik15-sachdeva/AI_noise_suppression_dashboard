@@ -4,7 +4,7 @@ import MicrophoneStatusCard from '../components/MicrophoneStatusCard';
 import NoiseLevelCard from '../components/NoiseLevelCard';
 import VoiceQualityCard from '../components/VoiceQualityCard';
 import LatencyCard from '../components/LatencyCard';
-import AudioWaveformCard from '../components/AudioWaveformCard';
+import AudioUploadCard from '../components/AudioUploadCard';
 import AlertPanel from '../components/AlertPanel';
 import { healthService, metricsService, audioService } from '../services/api';
 
@@ -14,33 +14,49 @@ const Dashboard = () => {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchData = async () => {
+    try {
+      const [healthRes, metricsRes, alertsRes] = await Promise.all([
+        healthService.getHealth().catch(() => ({ data: { status: 'offline' } })),
+        metricsService.getMetrics(),
+        audioService.getAlerts()
+      ]);
+      setSystemStatus(healthRes.data.status);
+      setMetrics(metricsRes.data);
+      setAlerts(alertsRes.data);
+    } catch (err) {
+      setSystemStatus('offline');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [healthRes, metricsRes, alertsRes] = await Promise.all([
-          healthService.getHealth().catch(() => ({ data: { status: 'offline' } })),
-          metricsService.getMetrics(),
-          audioService.getAlerts()
-        ]);
-        setSystemStatus(healthRes.data.status);
-        setMetrics(metricsRes.data);
-        setAlerts(alertsRes.data);
-      } catch (err) {
-        setSystemStatus('offline');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
+    // Poll for alerts and online status check every 30 seconds
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
+  const handleUploadSuccess = (data) => {
+    // Instantly update UI metrics from the processed audio file results
+    setMetrics({
+      microphone_status: 'connected',
+      noise_score: data.noise_score,
+      voice_clarity: data.voice_clarity,
+      latency: metrics?.latency || 50,
+      audio_quality: data.audio_quality
+    });
+    // Refresh alerts to show the new classification log
+    audioService.getAlerts().then((res) => {
+      setAlerts(res.data);
+    });
+  };
+
   if (loading && !metrics) {
     return (
       <div className="h-full flex items-center justify-center text-zinc-500 text-sm tracking-widest uppercase">
-        Loading...
+        Loading Dashboard...
       </div>
     );
   }
@@ -58,10 +74,10 @@ const Dashboard = () => {
           <LatencyCard latency={metrics?.latency} />
         </div>
 
-        {/* Main View: Waveform & Alerts */}
+        {/* Main View: Interactive Audio Upload & Alerts Panel */}
         <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2 h-full">
-            <AudioWaveformCard />
+            <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
           </div>
           <div className="md:col-span-1 h-full">
             <AlertPanel alerts={alerts} />

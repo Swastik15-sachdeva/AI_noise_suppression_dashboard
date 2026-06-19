@@ -7,3 +7,7 @@ scipy
 librosa
 soundfile
 noisereduce
+cloudinary
+python-dotenv
+torch
+torchaudio

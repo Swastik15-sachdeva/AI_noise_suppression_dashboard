@@ -6,7 +6,9 @@ import VoiceQualityCard from '../components/VoiceQualityCard';
 import LatencyCard from '../components/LatencyCard';
 import AudioUploadCard from '../components/AudioUploadCard';
 import AudioWaveformCard from '../components/AudioWaveformCard';
+import LiveMicrophoneCard from '../components/LiveMicrophoneCard';
 import AlertPanel from '../components/AlertPanel';
+import CloudinaryGallery from '../components/CloudinaryGallery';
 import { healthService, metricsService, audioService } from '../services/api';
 
 const Dashboard = () => {
@@ -14,6 +16,7 @@ const Dashboard = () => {
   const [metrics, setMetrics] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [uploadCount, setUploadCount] = useState(0);
 
   const fetchData = async () => {
     try {
@@ -52,6 +55,8 @@ const Dashboard = () => {
     audioService.getAlerts().then((res) => {
       setAlerts(res.data);
     });
+    // Trigger Cloudinary gallery refresh
+    setUploadCount(prev => prev + 1);
   };
 
   if (loading && !metrics) {
@@ -63,10 +68,10 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="h-full flex flex-col max-w-6xl mx-auto px-6 py-8">
+    <div className="h-full overflow-y-auto flex flex-col max-w-6xl mx-auto px-6 py-8">
       <DashboardHeader systemStatus={systemStatus} />
 
-      <div className="flex-1 min-h-0 flex flex-col gap-6">
+      <div className="flex flex-col gap-6 pb-12">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 shrink-0">
           <MicrophoneStatusCard status={metrics?.microphone_status} />
@@ -76,7 +81,7 @@ const Dashboard = () => {
         </div>
 
         {/* Main View: Left side has stack of Upload and Visualizer, Right side has Alerts */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
           <div className="md:col-span-2 h-full flex flex-col gap-6">
             <div className="flex-1 min-h-0">
               <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
@@ -85,10 +90,16 @@ const Dashboard = () => {
               <AudioWaveformCard onUploadSuccess={handleUploadSuccess} />
             </div>
           </div>
-          <div className="md:col-span-1 h-full">
-            <AlertPanel alerts={alerts} />
+          <div className="md:col-span-1 h-full flex flex-col gap-6">
+            <LiveMicrophoneCard />
+            <div className="flex-1 min-h-0">
+              <AlertPanel alerts={alerts} />
+            </div>
           </div>
         </div>
+        
+        {/* Cloudinary Gallery */}
+        <CloudinaryGallery refreshTrigger={uploadCount} />
       </div>
     </div>
   );

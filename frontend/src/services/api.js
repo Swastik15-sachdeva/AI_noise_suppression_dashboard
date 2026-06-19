@@ -28,6 +28,7 @@ export const audioService = {
       },
     });
   },
+  getCloudinaryFiles: () => apiClient.get('/audio/files'),
 };
 
 export default apiClient;

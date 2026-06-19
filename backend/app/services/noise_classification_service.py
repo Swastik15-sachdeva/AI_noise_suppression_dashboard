@@ -59,25 +59,30 @@ class NoiseClassificationService:
             total_energy = np.sum(stft) + 1e-9
             low_freq_ratio = low_freq_energy / total_energy
 
-            # Classify based on spectral features
-            # A. Keyboard Typing: High transients, high peak zero-crossing rate relative to mean
-            if max_zcr > 0.25 and mean_zcr > 0.08:
+            # 5. Compute RMS statistics to identify transiency (keyboard clicks vs steady fan hum)
+            rms = librosa.feature.rms(y=y)[0]
+            rms_mean = np.mean(rms) + 1e-9
+            rms_crest = np.max(rms) / rms_mean
+
+            # Classify based on spectral and temporal features
+            # A. Keyboard Typing: High transients (large crest factor) and high zero-crossing rate
+            if rms_crest > 9.0 and max_zcr > 0.25 and mean_zcr > 0.05:
                 return "Keyboard Typing"
 
             # B. Traffic Noise: Strong low-frequency component (engine rumbles) and low centroid
             elif low_freq_ratio > 0.45 and mean_centroid < 1000:
                 return "Traffic Noise"
 
-            # C. Fan Noise: Continuous, hiss-like (high spectral centroid and high flatness)
-            elif mean_centroid > 2200 and mean_flatness > 0.008:
+            # C. Fan Noise: Continuous, hiss-like (centroid between 1200Hz and 2500Hz, and high flatness)
+            elif mean_centroid > 1200 and mean_flatness > 0.01:
                 return "Fan Noise"
 
-            # D. AC Noise: Steady hum (lower centroid than fan noise but still steady and flat)
+            # D. AC Noise: Steady hum (lower centroid/flatness than fan noise but still steady)
             elif 1000 <= mean_centroid <= 2200 and mean_flatness > 0.005:
                 return "AC Noise"
 
             # E. Background Conversation: High harmonicity (very low flatness, centroid centered around human voice range)
-            elif mean_flatness < 0.002 and 800 <= mean_centroid <= 2000:
+            elif mean_flatness < 0.003 and 800 <= mean_centroid <= 2000:
                 return "Background Conversation"
 
             else:

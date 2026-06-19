@@ -61,8 +61,11 @@ const Dashboard = () => {
 
   if (loading && !metrics) {
     return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm tracking-widest uppercase">
-        Loading Dashboard...
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-400 gap-4">
+        <div className="h-7 w-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="text-[10px] tracking-widest uppercase font-semibold text-slate-500">
+          Loading Dashboard...
+        </div>
       </div>
     );
   }
@@ -86,7 +89,7 @@ const Dashboard = () => {
             <div className="flex-1 min-h-0">
               <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
             </div>
-            <div className="h-[320px] shrink-0">
+            <div className="min-h-[340px] shrink-0 h-fit">
               <AudioWaveformCard onUploadSuccess={handleUploadSuccess} />
             </div>
           </div>

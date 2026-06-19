@@ -1,12 +1,60 @@
 import React from 'react';
 
-const NoiseLevelCard = ({ score }) => {
+const NoiseLevelCard = ({ score = 0 }) => {
+  const normalizedScore = Math.max(0, Math.min(100, score || 0));
+  
+  // Color coding details (lower is better):
+  // Good: <= 30 (emerald), Moderate: 31-65 (amber), Poor: > 65 (rose)
+  let colorClass = 'stroke-emerald-500 text-emerald-400';
+  let ratingText = 'Good';
+  if (normalizedScore > 65) {
+    colorClass = 'stroke-rose-500 text-rose-400';
+    ratingText = 'Poor';
+  } else if (normalizedScore > 30) {
+    colorClass = 'stroke-amber-500 text-amber-400';
+    ratingText = 'Moderate';
+  }
+
+  const radius = 24;
+  const strokeWidth = 5;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (normalizedScore / 100) * circumference;
+
   return (
-    <div className="p-5 border border-zinc-300 rounded-xl bg-zinc-100/50">
-      <div className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Noise Level</div>
-      <div className="flex items-baseline space-x-1">
-        <span className="text-lg font-medium text-zinc-900">{score || 0}</span>
-        <span className="text-xs text-zinc-500">/ 100</span>
+    <div className="p-5 border border-slate-800/80 rounded-2xl bg-slate-900/40 backdrop-blur-md flex items-center justify-between transition-all duration-300 hover:border-slate-700/60 shadow-lg">
+      <div>
+        <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-1.5 font-bold">Noise Level</div>
+        <div className="flex items-baseline space-x-1.5">
+          <span className="text-2xl font-bold text-white">{normalizedScore}</span>
+          <span className="text-xs text-slate-500 font-medium">/ 100</span>
+        </div>
+        <div className="text-[10px] mt-1 font-semibold text-slate-500 flex items-center gap-1">
+          Rating: <span className={colorClass.split(' ')[1]}>{ratingText}</span>
+        </div>
+      </div>
+
+      <div className="relative w-16 h-16 flex items-center justify-center flex-shrink-0">
+        <svg className="w-full h-full transform -rotate-90">
+          <circle
+            cx="32"
+            cy="32"
+            r={radius}
+            className="stroke-slate-800"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          <circle
+            cx="32"
+            cy="32"
+            r={radius}
+            className={`${colorClass.split(' ')[0]} transition-all duration-500 ease-out`}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+          />
+        </svg>
       </div>
     </div>
   );

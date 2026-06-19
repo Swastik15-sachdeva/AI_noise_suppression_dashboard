@@ -315,12 +315,20 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
     clearCanvas();
   };
 
-  const toggleSuppressionLive = () => {
-    if (isListening && isSuppressing) {
+  const toggleMic = () => {
+    if (isListening) {
       stopListening();
-      startLiveMonitor(false);
     } else {
-      startLiveMonitor(true);
+      startLiveMonitor(isSuppressing);
+    }
+  };
+
+  const toggleSuppression = () => {
+    const nextSuppression = !isSuppressing;
+    setIsSuppressing(nextSuppression);
+    if (isListening && recordingState === 'idle') {
+      stopListening();
+      startLiveMonitor(nextSuppression);
     }
   };
 
@@ -500,33 +508,33 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
             </button>
           )}
 
-          {/* Live Monitor Toggle */}
+          {/* Mic Toggle Button */}
           {recordingState === 'idle' && (
             <button
-              onClick={isListening ? stopListening : () => startLiveMonitor(false)}
+              onClick={toggleMic}
               className={`px-3 py-2 rounded-lg border text-xs font-semibold tracking-wide transition-all duration-200 ${
-                isListening && !isSuppressing
-                  ? 'bg-zinc-200 border-zinc-400 text-zinc-800'
+                isListening
+                  ? 'bg-blue-600 border-blue-700 text-white hover:bg-blue-500'
                   : 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'
               }`}
-              title="Test microphone feedback visually"
+              title="Toggle live microphone stream"
             >
-              {isListening && !isSuppressing ? 'Stop Stream' : 'Live Stream'}
+              {isListening ? 'Mic: ON' : 'Mic: OFF'}
             </button>
           )}
 
-          {/* Real-time Suppression Toggle */}
+          {/* Suppression Toggle Button */}
           {recordingState === 'idle' && (
             <button
-              onClick={toggleSuppressionLive}
+              onClick={toggleSuppression}
               className={`px-3 py-2 rounded-lg border text-xs font-semibold tracking-wide transition-all duration-200 ${
                 isSuppressing
                   ? 'bg-emerald-600 border-emerald-700 text-white hover:bg-emerald-500'
                   : 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'
               }`}
-              title="Hear real-time suppressed audio (use headphones)"
+              title="Toggle AI spectral suppression filtering"
             >
-              {isSuppressing ? 'Suppression: ON' : 'Real-time WS'}
+              {isSuppressing ? 'Suppression: ON' : 'Suppression: OFF'}
             </button>
           )}
         </div>

@@ -469,7 +469,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
         </div>
         
         {/* Canvas Display */}
-        <div className="flex-1 min-h-[110px] rounded-lg overflow-hidden border border-zinc-200 relative bg-zinc-100">
+        <div className="h-[90px] rounded-lg overflow-hidden border border-zinc-200 relative bg-zinc-100">
           <canvas 
             ref={canvasRef} 
             width={500} 

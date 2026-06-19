@@ -81,7 +81,7 @@ const Dashboard = () => {
             <div className="flex-1 min-h-0">
               <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
             </div>
-            <div className="h-[240px] shrink-0">
+            <div className="h-[320px] shrink-0">
               <AudioWaveformCard onUploadSuccess={handleUploadSuccess} />
             </div>
           </div>

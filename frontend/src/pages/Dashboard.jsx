@@ -63,10 +63,10 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="h-full flex flex-col max-w-6xl mx-auto px-6 py-8">
+    <div className="min-h-full flex flex-col max-w-6xl mx-auto px-6 py-8">
       <DashboardHeader systemStatus={systemStatus} />
 
-      <div className="flex-1 min-h-0 flex flex-col gap-6">
+      <div className="flex-1 flex flex-col gap-6">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 shrink-0">
           <MicrophoneStatusCard status={metrics?.microphone_status} />

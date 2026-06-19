@@ -171,6 +171,49 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
     }
   };
 
+  const toggleSuppressionLiveState = (enable) => {
+    if (enable) {
+      if (socketRef.current) return; // already streaming
+      
+      const audioCtx = audioContextRef.current;
+      if (!audioCtx) return;
+
+      const ws = new WebSocket('ws://localhost:8000/audio/stream');
+      ws.binaryType = 'arraybuffer';
+      socketRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('Suppression enabled during active session');
+      };
+
+      ws.onmessage = (e) => {
+        const cleanBuffer = e.data;
+        const cleanData = new Float32Array(cleanBuffer);
+
+        const playBuffer = audioCtx.createBuffer(1, cleanData.length, 16000);
+        playBuffer.getChannelData(0).set(cleanData);
+
+        const bufferSource = audioCtx.createBufferSource();
+        bufferSource.buffer = playBuffer;
+
+        // Connect to analyser and speakers
+        bufferSource.connect(analyserRef.current);
+        analyserRef.current.connect(audioCtx.destination);
+
+        if (nextPlayTimeRef.current < audioCtx.currentTime) {
+          nextPlayTimeRef.current = audioCtx.currentTime;
+        }
+        bufferSource.start(nextPlayTimeRef.current);
+        nextPlayTimeRef.current += playBuffer.duration;
+      };
+    } else {
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+    }
+  };
+
   const startRecording = async () => {
     try {
       stopListening();
@@ -184,6 +227,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       // 2. Set up Web Audio API context at 16000Hz (auto-resampled)
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
       audioContextRef.current = audioCtx;
+      nextPlayTimeRef.current = audioCtx.currentTime;
 
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -205,10 +249,19 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
         recordingSamplesRef.current.push(new Float32Array(inputData));
+        
+        // Stream to WebSocket if suppression is active
+        if (isSuppressing && socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+          socketRef.current.send(inputData.buffer);
+        }
       };
 
       setIsListening(true);
       drawWaveform();
+
+      if (isSuppressing) {
+        toggleSuppressionLiveState(true);
+      }
     } catch (err) {
       console.error('Error starting recording:', err);
       setUploadError('Could not access microphone. Please check permissions.');
@@ -233,6 +286,10 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
         audioContextRef.current = null;
+      }
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
       }
       setIsListening(false);
       if (animationRef.current) {
@@ -326,7 +383,9 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
   const toggleSuppression = () => {
     const nextSuppression = !isSuppressing;
     setIsSuppressing(nextSuppression);
-    if (isListening && recordingState === 'idle') {
+    if (recordingState === 'recording') {
+      toggleSuppressionLiveState(nextSuppression);
+    } else if (isListening && recordingState === 'idle') {
       stopListening();
       startLiveMonitor(nextSuppression);
     }
@@ -524,7 +583,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
           )}
 
           {/* Suppression Toggle Button */}
-          {recordingState === 'idle' && (
+          {(recordingState === 'idle' || recordingState === 'recording') && (
             <button
               onClick={toggleSuppression}
               className={`px-3 py-2 rounded-lg border text-xs font-semibold tracking-wide transition-all duration-200 ${

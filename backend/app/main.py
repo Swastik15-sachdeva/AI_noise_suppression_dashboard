@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 from app.routers import health, metrics, audio
 
 app = FastAPI(

@@ -114,7 +114,7 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                             <audio src={results.originalAudioUrl} controls className="w-full h-8 mt-1 scale-95 origin-left" />
                         </div>
                         <div>
-                            <span className="text-[10px] text-zinc-500 block">Cleaned Speech (ConvTasNet Output)</span>
+                            <span className="text-[10px] text-zinc-500 block">Cleaned Speech (noisereduce Output)</span>
                             <audio src={results.cleanAudioUrl} controls className="w-full h-8 mt-1 scale-95 origin-left" />
                         </div>
                     </div>

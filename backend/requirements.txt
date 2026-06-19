@@ -9,5 +9,3 @@ soundfile
 noisereduce
 cloudinary
 python-dotenv
-torch
-torchaudio

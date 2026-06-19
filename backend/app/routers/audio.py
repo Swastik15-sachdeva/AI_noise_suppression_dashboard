@@ -91,6 +91,21 @@ def upload_audio(file: UploadFile = File(...)):
             f"Processed {file.filename}: Dominant noise was '{noise_type}' (Level: {quality_metrics['noise_level']}%)."
         )
 
+        # 8. Upload clean audio to Cloudinary if credentials are configured
+        clean_audio_url = f"/static/clean/{file.filename}"
+        if os.getenv("CLOUDINARY_CLOUD_NAME"):
+            try:
+                with open(clean_file_path, "rb") as f:
+                    clean_bytes = f.read()
+                clean_audio_url = CloudinaryService.upload_audio(
+                    file_bytes=clean_bytes,
+                    folder=f"{branch}/afterNoiseSuppression",
+                    filename=file.filename.split('.')[0] + "_clean"
+                )
+                print(f"Successfully uploaded clean audio to Cloudinary: {clean_audio_url}")
+            except Exception as upload_err:
+                print(f"Failed to upload clean audio to Cloudinary: {str(upload_err)}. Falling back to local static URL.")
+
         return {
             "message": f"Successfully processed file: {file.filename}",
             "status": "success",
@@ -99,7 +114,7 @@ def upload_audio(file: UploadFile = File(...)):
             "noise_score": quality_metrics["noise_level"],
             "speech_presence": quality_metrics["speech_presence"],
             "audio_quality": quality_metrics["audio_quality"],
-            "clean_audio_url": cloudinary_url
+            "clean_audio_url": clean_audio_url
         }
 
     except Exception as e:

@@ -9,3 +9,4 @@ soundfile
 noisereduce
 cloudinary
 python-dotenv
+websockets

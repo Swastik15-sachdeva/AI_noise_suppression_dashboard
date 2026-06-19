@@ -27,12 +27,14 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
             const data = response.data;
 
             if (data.status === 'success') {
+                const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+                const cleanUrl = data.clean_audio_url.startsWith('http') ? data.clean_audio_url : `${apiBaseUrl}${data.clean_audio_url}`;
                 setResults({
                     noiseType: data.noise_type,
                     voiceClarity: data.voice_clarity,
                     noiseScore: data.noise_score,
                     audioQuality: data.audio_quality,
-                    cleanAudioUrl: `http://localhost:8000${data.clean_audio_url}`,
+                    cleanAudioUrl: cleanUrl,
                     originalAudioUrl: URL.createObjectURL(file)
                 });
 

@@ -320,7 +320,8 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       if (data.status === 'success') {
         const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
         setBeforeAudioUrl(URL.createObjectURL(wavBlob));
-        setAfterAudioUrl(`${API_BASE_URL}${data.clean_audio_url}`);
+        const cleanUrl = data.clean_audio_url.startsWith('http') ? data.clean_audio_url : `${API_BASE_URL}${data.clean_audio_url}`;
+        setAfterAudioUrl(cleanUrl);
         setNoiseClassification(data.noise_type);
         setVoiceClarityScore(data.voice_clarity);
         setNoiseLevelScore(data.noise_score);

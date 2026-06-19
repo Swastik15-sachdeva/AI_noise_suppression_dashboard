@@ -1,3 +1,7 @@
+import os
+import librosa
+import numpy as np
+
 class VoiceClarityService:
     """
     Service to evaluate voice clarity by estimating the signal-to-noise ratio (SNR)

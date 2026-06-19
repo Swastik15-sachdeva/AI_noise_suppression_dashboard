@@ -82,7 +82,7 @@ const Dashboard = () => {
               <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
             </div>
             <div className="h-[240px] shrink-0">
-              <AudioWaveformCard />
+              <AudioWaveformCard onUploadSuccess={handleUploadSuccess} />
             </div>
           </div>
           <div className="md:col-span-1 h-full">

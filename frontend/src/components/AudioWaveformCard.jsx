@@ -1,13 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { audioService } from '../services/api';
 
-const AudioWaveformCard = () => {
+const AudioWaveformCard = ({ onUploadSuccess }) => {
   const [isListening, setIsListening] = useState(false);
   const [isSuppressing, setIsSuppressing] = useState(false);
-  const [recordingState, setRecordingState] = useState('idle'); // 'idle', 'recording_before', 'recording_after'
+  const [recordingState, setRecordingState] = useState('idle'); // 'idle', 'recording', 'processing', 'success', 'error'
   
-  // Recorded Audio URLs
+  // Recorded Audio URLs and Results
   const [beforeAudioUrl, setBeforeAudioUrl] = useState(null);
   const [afterAudioUrl, setAfterAudioUrl] = useState(null);
+  const [noiseClassification, setNoiseClassification] = useState(null);
+  const [voiceClarityScore, setVoiceClarityScore] = useState(null);
+  const [noiseLevelScore, setNoiseLevelScore] = useState(null);
+  const [audioQualityScore, setAudioQualityScore] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
 
   const canvasRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -20,17 +26,70 @@ const AudioWaveformCard = () => {
   const processorRef = useRef(null);
   const nextPlayTimeRef = useRef(0);
 
-  // Recording API Refs
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  // Recording Buffer Ref
+  const recordingSamplesRef = useRef([]);
 
-  const startListening = async (shouldSuppress = false, isRecording = false) => {
+  // WAV encoder helper function
+  const bufferToWav = (buffer, sampleRate) => {
+    const bufferLength = buffer.length;
+    const wavBuffer = new ArrayBuffer(44 + bufferLength * 2);
+    const view = new DataView(wavBuffer);
+
+    const writeString = (view, offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    /* RIFF identifier */
+    writeString(view, 0, 'RIFF');
+    /* file length */
+    view.setUint32(4, 36 + bufferLength * 2, true);
+    /* RIFF type */
+    writeString(view, 8, 'WAVE');
+    /* format chunk identifier */
+    writeString(view, 12, 'fmt ');
+    /* format chunk length */
+    view.setUint32(16, 16, true);
+    /* sample format (raw PCM) */
+    view.setUint16(20, 1, true);
+    /* channel count (mono) */
+    view.setUint16(22, 1, true);
+    /* sample rate */
+    view.setUint32(24, sampleRate, true);
+    /* byte rate (sample rate * block align) */
+    view.setUint32(28, sampleRate * 2, true);
+    /* block align (channel count * bytes per sample) */
+    view.setUint16(32, 2, true);
+    /* bits per sample */
+    view.setUint16(34, 16, true);
+    /* data chunk identifier */
+    writeString(view, 36, 'data');
+    /* data chunk length */
+    view.setUint32(40, bufferLength * 2, true);
+
+    // Write PCM audio samples (convert Float32 to Int16 PCM)
+    let offset = 44;
+    for (let i = 0; i < bufferLength; i++, offset += 2) {
+      let s = Math.max(-1, Math.min(1, buffer[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+  };
+
+  // Start live monitoring or real-time streaming
+  const startLiveMonitor = async (shouldSuppress = false) => {
     try {
+      // Clean up any existing instances first
+      stopListening();
+      setUploadError(null);
+
       // 1. Get microphone stream
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // 2. Set up Web Audio API context at 16000Hz (browser will auto-resample input to 16kHz!)
+      // 2. Set up Web Audio API context at 16000Hz (auto-resampled)
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
       audioContextRef.current = audioCtx;
       nextPlayTimeRef.current = audioCtx.currentTime;
@@ -50,8 +109,7 @@ const AudioWaveformCard = () => {
         ws.onopen = () => {
           console.log('Connected to real-time suppression WebSocket');
           
-          // Create script processor to read mic chunks (buffer size 4096 frames)
-          // 4096 frames at 16kHz sample rate = 256ms chunk size
+          // Create script processor to read mic chunks (buffer size 4096 frames = 256ms chunk size)
           const processor = audioCtx.createScriptProcessor(4096, 1, 1);
           processorRef.current = processor;
 
@@ -65,9 +123,6 @@ const AudioWaveformCard = () => {
             }
           };
         };
-
-        // Set up MediaStreamDestination for recording CLEAN output
-        const dest = audioCtx.createMediaStreamDestination();
 
         ws.onmessage = (e) => {
           const cleanBuffer = e.data;
@@ -83,9 +138,6 @@ const AudioWaveformCard = () => {
           // Connect to analyser (for drawing cleaned waveform) and speakers
           bufferSource.connect(analyser);
           analyser.connect(audioCtx.destination);
-          
-          // Connect to the recording destination node as well
-          analyser.connect(dest);
 
           // Queue playback continuously to prevent gaps/clicks
           if (nextPlayTimeRef.current < audioCtx.currentTime) {
@@ -94,28 +146,6 @@ const AudioWaveformCard = () => {
           bufferSource.start(nextPlayTimeRef.current);
           nextPlayTimeRef.current += playBuffer.duration;
         };
-
-        // Start recording Clean (After) if requested
-        if (isRecording) {
-          const recorder = new MediaRecorder(dest.stream);
-          mediaRecorderRef.current = recorder;
-          audioChunksRef.current = [];
-
-          recorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              audioChunksRef.current.push(event.data);
-            }
-          };
-
-          recorder.onstop = () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-            setAfterAudioUrl(URL.createObjectURL(audioBlob));
-            setRecordingState('idle');
-          };
-
-          recorder.start();
-          setRecordingState('recording_after');
-        }
 
         ws.onerror = (err) => {
           console.error('WebSocket Error:', err);
@@ -130,65 +160,151 @@ const AudioWaveformCard = () => {
         // --- Standard raw microphone setup ---
         source.connect(analyser);
         setIsSuppressing(false);
-
-        // Start recording Noisy (Before) if requested
-        if (isRecording) {
-          const recorder = new MediaRecorder(stream);
-          mediaRecorderRef.current = recorder;
-          audioChunksRef.current = [];
-
-          recorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              audioChunksRef.current.push(event.data);
-            }
-          };
-
-          recorder.onstop = () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-            setBeforeAudioUrl(URL.createObjectURL(audioBlob));
-            setRecordingState('idle');
-          };
-
-          recorder.start();
-          setRecordingState('recording_before');
-        }
       }
 
       setIsListening(true);
       drawWaveform();
     } catch (err) {
-      console.error('Error accessing microphone:', err);
-      alert('Could not access microphone. Please check browser permissions.');
+      console.error('Error accessing microphone for live monitor:', err);
+      setUploadError('Could not access microphone. Please check browser permissions.');
       stopListening();
     }
   };
 
-  const stopListening = () => {
-    // 1. Stop recording if active
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+  const startRecording = async () => {
+    try {
+      stopListening();
+      setRecordingState('recording');
+      setUploadError(null);
+      
+      // 1. Get microphone stream
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      // 2. Set up Web Audio API context at 16000Hz (auto-resampled)
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      audioContextRef.current = audioCtx;
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      // Collect audio chunks in memory
+      recordingSamplesRef.current = [];
+      
+      // Create script processor to read mic chunks (buffer size 4096 frames = 256ms chunk)
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+
+      processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        recordingSamplesRef.current.push(new Float32Array(inputData));
+      };
+
+      setIsListening(true);
+      drawWaveform();
+    } catch (err) {
+      console.error('Error starting recording:', err);
+      setUploadError('Could not access microphone. Please check permissions.');
+      setRecordingState('idle');
     }
-    
-    // 2. Stop visualizer animation loop
+  };
+
+  const stopRecording = async () => {
+    if (recordingState !== 'recording') return;
+    setRecordingState('processing');
+
+    try {
+      // 1. Terminate all capture nodes immediately
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      setIsListening(false);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+
+      // 2. Concatenate samples
+      const chunks = recordingSamplesRef.current;
+      if (chunks.length === 0) {
+        throw new Error("No audio was recorded.");
+      }
+      const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+      const flatBuffer = new Float32Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        flatBuffer.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // 3. Convert to WAV Blob
+      const wavBlob = bufferToWav(flatBuffer, 16000);
+      const audioFile = new File([wavBlob], `recording_${Date.now()}.wav`, { type: 'audio/wav' });
+
+      // 4. Send to backend
+      const response = await audioService.uploadAudio(audioFile);
+      const data = response.data;
+
+      if (data.status === 'success') {
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+        setBeforeAudioUrl(URL.createObjectURL(wavBlob));
+        setAfterAudioUrl(`${API_BASE_URL}${data.clean_audio_url}`);
+        setNoiseClassification(data.noise_type);
+        setVoiceClarityScore(data.voice_clarity);
+        setNoiseLevelScore(data.noise_score);
+        setAudioQualityScore(data.audio_quality);
+        setRecordingState('success');
+
+        // Update dashboard metrics
+        if (onUploadSuccess) {
+          onUploadSuccess(data);
+        }
+      } else {
+        throw new Error("Processing failed on server.");
+      }
+    } catch (err) {
+      console.error('Error uploading recording:', err);
+      setUploadError(err.response?.data?.detail || err.message || 'An error occurred during audio processing.');
+      setRecordingState('error');
+    }
+  };
+
+  const stopListening = () => {
+    // Stop recording visualizer loop
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
-    // 3. Stop recording script processor
+    // Stop recording script processor
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
     }
-    // 4. Close WebSocket
+    // Close WebSocket
     if (socketRef.current) {
       socketRef.current.close();
       socketRef.current = null;
     }
-    // 5. Stop microphone stream
+    // Stop microphone stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    // 6. Close Audio Context
+    // Close Audio Context
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
@@ -199,32 +315,24 @@ const AudioWaveformCard = () => {
     clearCanvas();
   };
 
-  const toggleSuppression = () => {
-    if (recordingState !== 'idle') return; // Disable toggle during recording
-    if (isListening) {
+  const toggleSuppressionLive = () => {
+    if (isListening && isSuppressing) {
       stopListening();
-      startListening(!isSuppressing);
+      startLiveMonitor(false);
     } else {
-      startListening(true);
+      startLiveMonitor(true);
     }
-  };
-
-  // Recording controls
-  const handleRecordBefore = () => {
-    stopListening();
-    // Start mic with suppression OFF and begin recording
-    startListening(false, true);
-  };
-
-  const handleRecordAfter = () => {
-    stopListening();
-    // Start mic with suppression ON and begin recording
-    startListening(true, true);
   };
 
   const clearRecordings = () => {
     setBeforeAudioUrl(null);
     setAfterAudioUrl(null);
+    setNoiseClassification(null);
+    setVoiceClarityScore(null);
+    setNoiseLevelScore(null);
+    setAudioQualityScore(null);
+    setRecordingState('idle');
+    setUploadError(null);
   };
 
   const clearCanvas = () => {
@@ -235,7 +343,7 @@ const AudioWaveformCard = () => {
     
     // Draw empty baseline
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#a1a1aa';
+    ctx.strokeStyle = '#d4d4d8'; // zinc-300
     ctx.beginPath();
     ctx.moveTo(0, canvas.height / 2);
     ctx.lineTo(canvas.width, canvas.height / 2);
@@ -252,55 +360,62 @@ const AudioWaveformCard = () => {
 
     const draw = () => {
       animationRef.current = requestAnimationFrame(draw);
-      analyserRef.current.getByteTimeDomainData(dataArray);
+      analyserRef.current.getByteFrequencyData(dataArray);
 
+      // Smooth background
       ctx.fillStyle = '#f4f4f5'; // zinc-100
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw grid
-      ctx.strokeStyle = '#e4e4e7';
+      // Draw horizontal grid lines
+      ctx.strokeStyle = '#e4e4e7'; // zinc-200
       ctx.lineWidth = 1;
-      for (let i = 1; i < 4; i++) {
-        const y = (canvas.height / 4) * i;
+      const gridCount = 4;
+      for (let i = 1; i < gridCount; i++) {
+        const y = (canvas.height / gridCount) * i;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(canvas.width, y);
         ctx.stroke();
       }
 
-      // Draw Waveform line
-      ctx.lineWidth = 3;
-      const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
-      if (isSuppressing) {
-        gradient.addColorStop(0, '#10b981'); // Emerald
-        gradient.addColorStop(0.5, '#06b6d4'); // Cyan
-        gradient.addColorStop(1, '#10b981');
-      } else {
-        gradient.addColorStop(0, '#f97316'); // Orange
-        gradient.addColorStop(0.5, '#ef4444'); // Red
-        gradient.addColorStop(1, '#f97316');
-      }
-      ctx.strokeStyle = gradient;
-      
-      ctx.beginPath();
-      const sliceWidth = canvas.width / bufferLength;
-      let x = 0;
+      // Draw vertical frequency bars (35 bars)
+      const barCount = 35;
+      const gap = 6;
+      const barWidth = (canvas.width - (barCount - 1) * gap) / barCount;
 
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = (v * canvas.height) / 2;
+      for (let i = 0; i < barCount; i++) {
+        // Target mid-low frequency ranges (speech)
+        const binIndex = Math.floor(4 + (i / barCount) * (bufferLength * 0.5));
+        const value = dataArray[binIndex] || 0;
 
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
+        // Map 0-255 to height
+        const percent = value / 255;
+        const maxBarHeight = canvas.height * 0.75;
+        const barHeight = Math.max(3, percent * maxBarHeight);
+
+        const x = i * (barWidth + gap);
+        const y = (canvas.height - barHeight) / 2; // Center bars vertically
+
+        // Color matching states
+        let barColor = '#d4d4d8'; // Zinc-300 default (inactive)
+        
+        if (isListening) {
+          if (recordingState === 'recording') {
+            barColor = i % 2 === 0 ? '#f97316' : '#ef4444'; // Orange/Red pulse
+          } else if (isSuppressing) {
+            barColor = i % 2 === 0 ? '#10b981' : '#06b6d4'; // Emerald/Cyan suppression
+          } else {
+            barColor = i % 2 === 0 ? '#6366f1' : '#3b82f6'; // Indigo/Blue normal
+          }
         }
 
-        x += sliceWidth;
-      }
+        ctx.fillStyle = barColor;
 
-      ctx.lineTo(canvas.width, canvas.height / 2);
-      ctx.stroke();
+        const radius = Math.min(barWidth / 2, 4);
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth, barHeight, radius);
+        ctx.fill();
+      }
     };
 
     draw();
@@ -318,111 +433,146 @@ const AudioWaveformCard = () => {
       <div>
         <div className="flex items-center justify-between mb-4 shrink-0">
           <div>
-            <h3 className="text-sm font-medium text-zinc-900">Live Mic Input</h3>
+            <h3 className="text-sm font-medium text-zinc-900">Live Activity</h3>
             <span className="text-[10px] text-zinc-500">
-              {isSuppressing 
-                ? "Running real-time spectral noise suppression" 
-                : "Visualizing raw microphone input"}
+              {recordingState === 'recording'
+                ? "Recording microphone input..."
+                : isSuppressing 
+                  ? "Real-time spectral suppression active" 
+                  : "Microphone analysis"}
             </span>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={toggleSuppression}
-              disabled={recordingState !== 'idle'}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 border ${
-                isSuppressing 
-                  ? 'bg-emerald-600 border-emerald-700 text-white hover:bg-emerald-500' 
-                  : 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'
-              } ${recordingState !== 'idle' ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isSuppressing ? 'Suppression: ON' : 'Enable Suppression'}
-            </button>
-            
-            <button
-              onClick={isListening ? stopListening : () => startListening(false)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide text-white transition-all duration-200 ${
-                isListening ? 'bg-red-600 hover:bg-red-500' : 'bg-zinc-900 hover:bg-zinc-800'
-              }`}
-            >
-              {recordingState !== 'idle' ? 'Stop Recording' : (isListening ? 'Stop Mic' : 'Start Mic')}
-            </button>
+          
+          {/* Status Badge */}
+          <div className="flex items-center gap-2">
+            {recordingState === 'recording' && (
+              <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold uppercase tracking-wider animate-pulse flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-600"></span>
+                RECORDING
+              </span>
+            )}
+            {isListening && recordingState !== 'recording' && (
+              <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-ping"></span>
+                LIVE MONITOR
+              </span>
+            )}
           </div>
         </div>
         
         {/* Canvas Display */}
-        <div className="flex-1 min-h-[120px] rounded-lg overflow-hidden border border-zinc-200 relative bg-zinc-100">
+        <div className="flex-1 min-h-[110px] rounded-lg overflow-hidden border border-zinc-200 relative bg-zinc-100">
           <canvas 
             ref={canvasRef} 
             width={500} 
-            height={150} 
+            height={130} 
             className="w-full h-full object-cover" 
           />
-          {isListening && (
-            <span className="absolute top-2 right-2 flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                isSuppressing ? 'bg-emerald-400' : 'bg-orange-400'
-              }`}></span>
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                isSuppressing ? 'bg-emerald-500' : 'bg-orange-500'
-              }`}></span>
-            </span>
-          )}
-          {recordingState !== 'idle' && (
-            <div className="absolute inset-0 bg-red-600/10 flex items-center justify-center border border-red-500 rounded-lg">
-              <span className="text-red-700 font-bold text-xs tracking-wider animate-pulse flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-600 inline-block"></span>
-                RECORDING {recordingState === 'recording_before' ? 'BEFORE' : 'AFTER'} (SPEAK NOW)
+          
+          {/* Overlays */}
+          {recordingState === 'processing' && (
+            <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center border border-zinc-200 rounded-lg">
+              <div className="h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-2 flex-shrink-0"></div>
+              <span className="text-indigo-800 font-semibold text-xs tracking-wider animate-pulse">
+                AI model is processing audio...
               </span>
             </div>
           )}
         </div>
 
-        {/* Demo Side-by-Side Recording Controls */}
-        <div className="mt-4 flex gap-4">
-          <button
-            onClick={handleRecordBefore}
-            disabled={recordingState !== 'idle'}
-            className="flex-1 py-2 rounded-lg border border-orange-300 hover:bg-orange-50/50 text-orange-700 font-semibold text-xs tracking-wide transition-all duration-200"
-          >
-            🎙️ Record Before (Suppression OFF)
-          </button>
-          <button
-            onClick={handleRecordAfter}
-            disabled={recordingState !== 'idle'}
-            className="flex-1 py-2 rounded-lg border border-emerald-300 hover:bg-emerald-50/50 text-emerald-700 font-semibold text-xs tracking-wide transition-all duration-200"
-          >
-            ✨ Record After (Suppression ON)
-          </button>
+        {/* Controls Layout */}
+        <div className="mt-4 flex gap-2">
+          {/* Main Record Action */}
+          {recordingState === 'recording' ? (
+            <button
+              onClick={stopRecording}
+              className="flex-1 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs tracking-wide transition-all duration-200 shadow-sm flex items-center justify-center gap-1"
+            >
+              ⏹️ Stop & Process Audio
+            </button>
+          ) : (
+            <button
+              onClick={startRecording}
+              disabled={recordingState === 'processing'}
+              className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-xs tracking-wide transition-all duration-200 shadow-sm flex items-center justify-center gap-1 disabled:opacity-50"
+            >
+              🎙️ Record Audio Session
+            </button>
+          )}
+
+          {/* Live Monitor Toggle */}
+          {recordingState === 'idle' && (
+            <button
+              onClick={isListening ? stopListening : () => startLiveMonitor(false)}
+              className={`px-3 py-2 rounded-lg border text-xs font-semibold tracking-wide transition-all duration-200 ${
+                isListening && !isSuppressing
+                  ? 'bg-zinc-200 border-zinc-400 text-zinc-800'
+                  : 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'
+              }`}
+              title="Test microphone feedback visually"
+            >
+              {isListening && !isSuppressing ? 'Stop Stream' : 'Live Stream'}
+            </button>
+          )}
+
+          {/* Real-time Suppression Toggle */}
+          {recordingState === 'idle' && (
+            <button
+              onClick={toggleSuppressionLive}
+              className={`px-3 py-2 rounded-lg border text-xs font-semibold tracking-wide transition-all duration-200 ${
+                isSuppressing
+                  ? 'bg-emerald-600 border-emerald-700 text-white hover:bg-emerald-500'
+                  : 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'
+              }`}
+              title="Hear real-time suppressed audio (use headphones)"
+            >
+              {isSuppressing ? 'Suppression: ON' : 'Real-time WS'}
+            </button>
+          )}
         </div>
+
+        {uploadError && (
+          <div className="mt-3 p-3 bg-red-50 text-red-700 text-[11px] rounded border border-red-200">
+            ⚠️ {uploadError}
+          </div>
+        )}
       </div>
       
-      {/* Side-by-Side Comparison Players */}
-      {(beforeAudioUrl || afterAudioUrl) && (
+      {/* Side-by-Side Comparison Players (Available on Success) */}
+      {recordingState === 'success' && (beforeAudioUrl || afterAudioUrl) && (
         <div className="mt-4 border-t border-zinc-200 pt-4 shrink-0">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold block">Demo Comparison</span>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold block">Processed Results</span>
+              {noiseClassification && (
+                <span className="text-xs text-zinc-700">
+                  Dominant Noise: <span className="font-semibold text-indigo-600">{noiseClassification}</span>
+                </span>
+              )}
+            </div>
             <button
               onClick={clearRecordings}
-              className="text-[10px] text-red-600 hover:text-red-500 font-medium underline"
+              className="text-[10px] text-zinc-500 hover:text-red-600 font-medium underline"
             >
-              Clear Comparison
+              Clear
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-3 bg-white border border-zinc-200 rounded-lg">
-              <span className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider block mb-1">Before (Noisy Mic)</span>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-3 bg-white border border-zinc-200 rounded-lg shadow-sm">
+              <span className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider block mb-1">Before (Original)</span>
               {beforeAudioUrl ? (
                 <audio src={beforeAudioUrl} controls className="w-full h-8 scale-95 origin-left" />
               ) : (
-                <div className="h-8 flex items-center justify-center text-[10px] text-zinc-400 italic">No recording yet</div>
+                <div className="h-8 flex items-center justify-center text-[10px] text-zinc-400 italic">No audio</div>
               )}
             </div>
-            <div className="p-3 bg-white border border-zinc-200 rounded-lg">
+            <div className="p-3 bg-white border border-zinc-200 rounded-lg shadow-sm">
               <span className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider block mb-1">After (Suppressed Voice)</span>
               {afterAudioUrl ? (
                 <audio src={afterAudioUrl} controls className="w-full h-8 scale-95 origin-left" />
               ) : (
-                <div className="h-8 flex items-center justify-center text-[10px] text-zinc-400 italic">No recording yet</div>
+                <div className="h-8 flex items-center justify-center text-[10px] text-zinc-400 italic">No audio</div>
               )}
             </div>
           </div>

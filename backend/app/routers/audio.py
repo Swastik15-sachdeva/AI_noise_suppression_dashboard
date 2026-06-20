@@ -149,69 +149,88 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
     
     try:
         while True:
-            # Receive binary chunk (PCM Float32 at 16kHz)
-            data = await websocket.receive_bytes()
-            if not data:
+            # Receive raw websocket message
+            message = await websocket.receive()
+            
+            # Handle disconnect message
+            if message.get("type") == "websocket.disconnect":
+                print("WebSocket client disconnected via message")
                 break
-            
-            # Convert bytes to numpy Float32 array
-            audio_chunk = np.frombuffer(data, dtype=np.float32)
-            
-            if len(audio_chunk) > 0:
-                full_session_buffer.append(audio_chunk)
                 
-                if suppress:
-                    # 1. Apply fast stationary noise reduction using noisereduce
-                    cleaned_chunk = nr.reduce_noise(
-                        y=audio_chunk,
-                        sr=16000,
-                        stationary=True,
-                        prop_decrease=0.85
-                    )
-                else:
-                    cleaned_chunk = audio_chunk
+            # If text, check if it contains latency updates from the frontend
+            if "text" in message:
+                import json
+                try:
+                    payload = json.loads(message["text"])
+                    if "latency" in payload:
+                        session.current_metrics["latency"] = int(payload["latency"])
+                except Exception as json_err:
+                    print(f"Error parsing websocket text frame: {json_err}")
+                continue
                 
-                # 2. Accumulate in the sliding buffer for stream analysis
-                rolling_buffer.append(audio_chunk)
-                samples_count += len(audio_chunk)
+            # If bytes, it is a binary audio chunk
+            if "bytes" in message:
+                data = message["bytes"]
+                if not data:
+                    break
                 
-                # 3 seconds window at 16kHz = 48,000 samples
-                if samples_count >= 48000:
-                    # Concatenate all accumulated chunks
-                    full_signal = np.concatenate(rolling_buffer)
-                    # Keep only the last 3 seconds
-                    analysis_signal = full_signal[-48000:]
+                # Convert bytes to numpy Float32 array
+                audio_chunk = np.frombuffer(data, dtype=np.float32)
+                
+                if len(audio_chunk) > 0:
+                    full_session_buffer.append(audio_chunk)
                     
-                    try:
-                        # Analyze noise type and quality in-memory (no disk IO!)
-                        noise_type = NoiseClassificationService.classify_noise(y=analysis_signal, sr=16000)
-                        quality_metrics = AudioQualityService.analyze_quality(y=analysis_signal, sr=16000)
-                        
-                        # Update session metrics in real time
-                        session.update_metrics(
-                            noise_score=quality_metrics["noise_level"],
-                            voice_clarity=quality_metrics["voice_clarity"],
-                            audio_quality=quality_metrics["audio_quality"]
+                    if suppress:
+                        # 1. Apply fast stationary noise reduction using noisereduce
+                        cleaned_chunk = nr.reduce_noise(
+                            y=audio_chunk,
+                            sr=16000,
+                            stationary=True,
+                            prop_decrease=0.85
                         )
-                        
-                        # Log alert if specific noise detected (prevent spamming: rate-limit to once per 10s)
-                        current_time = time.time()
-                        if noise_type != "Other" and (noise_type != last_detected_noise or (current_time - last_alert_time) > 10):
-                            session.add_alert(f"Live Mic: Detected '{noise_type}' background noise.")
-                            last_alert_time = current_time
-                            last_detected_noise = noise_type
-                            
-                    except Exception as analysis_err:
-                        print(f"Error in stream analysis: {str(analysis_err)}")
+                    else:
+                        cleaned_chunk = audio_chunk
                     
-                    # Reset buffer to keep sliding window context
-                    rolling_buffer = [analysis_signal]
-                    samples_count = len(analysis_signal)
-                
-                # 3. Convert back to raw bytes and send cleaned audio
-                cleaned_bytes = cleaned_chunk.astype(np.float32).tobytes()
-                await websocket.send_bytes(cleaned_bytes)
-                
+                    # 2. Accumulate in the sliding buffer for stream analysis
+                    rolling_buffer.append(audio_chunk)
+                    samples_count += len(audio_chunk)
+                    
+                    # 3 seconds window at 16kHz = 48,000 samples
+                    if samples_count >= 48000:
+                        # Concatenate all accumulated chunks
+                        full_signal = np.concatenate(rolling_buffer)
+                        # Keep only the last 3 seconds
+                        analysis_signal = full_signal[-48000:]
+                        
+                        try:
+                            # Analyze noise type and quality in-memory (no disk IO!)
+                            noise_type = NoiseClassificationService.classify_noise(y=analysis_signal, sr=16000)
+                            quality_metrics = AudioQualityService.analyze_quality(y=analysis_signal, sr=16000)
+                            
+                            # Update session metrics in real time
+                            session.update_metrics(
+                                noise_score=quality_metrics["noise_level"],
+                                voice_clarity=quality_metrics["voice_clarity"],
+                                audio_quality=quality_metrics["audio_quality"]
+                            )
+                            
+                            # Log alert if specific noise detected (prevent spamming: rate-limit to once per 10s)
+                            current_time = time.time()
+                            if noise_type != "Other" and (noise_type != last_detected_noise or (current_time - last_alert_time) > 10):
+                                session.add_alert(f"Live Mic: Detected '{noise_type}' background noise.")
+                                last_alert_time = current_time
+                                last_detected_noise = noise_type
+                                
+                        except Exception as analysis_err:
+                            print(f"Error in stream analysis: {str(analysis_err)}")
+                        
+                        # Reset buffer to keep sliding window context
+                        rolling_buffer = [analysis_signal]
+                        samples_count = len(analysis_signal)
+                    
+                    # 3. Convert back to raw bytes and send cleaned audio
+                    cleaned_bytes = cleaned_chunk.astype(np.float32).tobytes()
+                    await websocket.send_bytes(cleaned_bytes)
     except WebSocketDisconnect:
         print("WebSocket client disconnected")
         # Save session to Cloudinary only if explicitly requested and credentials are configured

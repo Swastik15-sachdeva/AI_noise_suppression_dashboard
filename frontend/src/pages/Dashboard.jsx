@@ -85,7 +85,7 @@ const Dashboard = () => {
 
         {/* Main View: Left side has stack of Upload and Visualizer, Right side has Alerts */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-          <div className="md:col-span-2 h-full flex flex-col gap-6">
+          <div className="md:col-span-2 h-fit flex flex-col gap-6">
             <div className="flex-1 min-h-0">
               <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
             </div>
@@ -93,8 +93,8 @@ const Dashboard = () => {
               <AudioWaveformCard onUploadSuccess={handleUploadSuccess} />
             </div>
           </div>
-          <div className="md:col-span-1 h-full flex flex-col gap-6">
-            <LiveMicrophoneCard />
+          <div className="md:col-span-1 h-fit flex flex-col gap-6">
+            <LiveMicrophoneCard onStreamEnd={() => setUploadCount(prev => prev + 1)} />
             <div className="flex-1 min-h-0">
               <AlertPanel alerts={alerts} />
             </div>

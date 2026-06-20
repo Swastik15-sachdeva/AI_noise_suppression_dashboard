@@ -4,17 +4,17 @@ const DashboardHeader = ({ systemStatus }) => {
   const isOnline = systemStatus === 'online';
 
   return (
-    <div className="flex items-center justify-between pb-6 mb-6 border-b border-slate-800/80 shrink-0">
-      <h1 className="text-xl font-semibold tracking-tight text-white">AI Noise Suppression Dashboard</h1>
-      <div className="flex items-center space-x-3 bg-slate-900/40 border border-slate-800 px-3 py-1.5 rounded-full backdrop-blur-sm">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+    <div className="flex items-center justify-between pb-6 mb-6 border-b border-[#141635] shrink-0">
+      <h1 className="text-2xl font-black tracking-wider text-slate-100 glow-text-white">AI NOISE SUPPRESSION DASHBOARD</h1>
+      <div className="flex items-center space-x-3 bg-[#0a0b1f]/60 border border-[#141635] px-4 py-1.5 rounded-full backdrop-blur-sm shadow-inner">
+        <span className={`text-[10px] font-extrabold uppercase tracking-widest ${isOnline ? 'text-cyan-400 glow-text-cyan' : 'text-pink-400 glow-text-pink'}`}>
           {systemStatus || 'Offline'}
         </span>
         <span
           className={`w-2.5 h-2.5 rounded-full ${
             isOnline
-              ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse'
-              : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)] animate-pulse'
+              ? 'bg-cyan-400 shadow-[0_0_10px_#06b6d4] animate-pulse'
+              : 'bg-pink-500 shadow-[0_0_10px_#ec4899] animate-pulse'
           }`}
         />
       </div>

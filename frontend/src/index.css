@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #070913;
-  --color-surface: #0f1322;
-  --color-border: #1e293b;
+  --color-background: #040510;
+  --color-surface: #0a0b1f;
+  --color-border: #141635;
 }
 
 body {
-  background-color: var(--color-background);
-  color: white;
+  background: linear-gradient(135deg, #03030c 0%, #0b0c24 45%, #050512 80%, #010207 100%);
+  background-attachment: fixed;
+  color: #cbd5e1;
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
@@ -18,8 +19,8 @@ body {
 .glow-blob {
   position: fixed;
   border-radius: 50%;
-  filter: blur(140px);
-  opacity: 0.18;
+  filter: blur(130px);
+  opacity: 0.16;
   pointer-events: none;
   mix-blend-mode: screen;
   will-change: transform;
@@ -31,8 +32,8 @@ body {
   left: -15%;
   width: 55vw;
   height: 55vw;
-  background: radial-gradient(circle, #4f46e5 0%, #312e81 80%, transparent 100%);
-  animation: float-blob-1 30s infinite alternate ease-in-out;
+  background: radial-gradient(circle, #4f46e5 0%, #1e1b4b 80%, transparent 100%);
+  animation: float-blob-1 25s infinite alternate ease-in-out;
 }
 
 .glow-blob-2 {
@@ -40,35 +41,77 @@ body {
   right: -15%;
   width: 65vw;
   height: 65vw;
-  background: radial-gradient(circle, #0891b2 0%, #0c4a6e 80%, transparent 100%);
-  animation: float-blob-2 35s infinite alternate ease-in-out;
+  background: radial-gradient(circle, #0891b2 0%, #0f172a 80%, transparent 100%);
+  animation: float-blob-2 30s infinite alternate ease-in-out;
 }
 
 .glow-blob-3 {
-  top: 35%;
-  right: 15%;
+  top: 30%;
+  right: 10%;
   width: 45vw;
   height: 45vw;
-  background: radial-gradient(circle, #db2777 0%, #701a75 80%, transparent 100%);
-  animation: float-blob-3 25s infinite alternate ease-in-out;
+  background: radial-gradient(circle, #a855f7 0%, #3b0764 80%, transparent 100%);
+  animation: float-blob-3 22s infinite alternate ease-in-out;
 }
 
 @keyframes float-blob-1 {
   0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(12%, 15%) scale(1.15); }
-  100% { transform: translate(-8%, -10%) scale(0.9); }
+  50% { transform: translate(10%, 12%) scale(1.1); }
+  100% { transform: translate(-5%, -8%) scale(0.95); }
 }
 
 @keyframes float-blob-2 {
   0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-15%, -10%) scale(0.85); }
-  100% { transform: translate(10%, 12%) scale(1.2); }
+  50% { transform: translate(-12%, -8%) scale(0.9); }
+  100% { transform: translate(8%, 10%) scale(1.15); }
 }
 
 @keyframes float-blob-3 {
   0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(10%, -15%) scale(1.1); }
-  100% { transform: translate(-12%, 8%) scale(0.95); }
+  50% { transform: translate(8%, -12%) scale(1.05); }
+  100% { transform: translate(-10%, 6%) scale(0.95); }
+}
+
+/* Futuristic Text & Glow Shadows */
+.glow-text-white {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.4), 0 0 20px rgba(99, 102, 241, 0.2);
+}
+
+.glow-text-cyan {
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.8), 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+.glow-text-purple {
+  text-shadow: 0 0 12px rgba(168, 85, 247, 0.8), 0 0 20px rgba(168, 85, 247, 0.3);
+}
+
+.glow-text-lime {
+  text-shadow: 0 0 10px rgba(132, 204, 22, 0.7), 0 0 18px rgba(132, 204, 22, 0.25);
+}
+
+.glow-text-amber {
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.7), 0 0 18px rgba(245, 158, 11, 0.25);
+}
+
+.glow-text-pink {
+  text-shadow: 0 0 10px rgba(236, 72, 153, 0.8), 0 0 20px rgba(236, 72, 153, 0.3);
+}
+
+/* Neon Box Shadows & Glows */
+.glow-box-cyan {
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.15), inset 0 0 15px rgba(6, 182, 212, 0.05);
+}
+
+.glow-box-purple {
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.15), inset 0 0 15px rgba(168, 85, 247, 0.05);
+}
+
+.glow-box-indigo {
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.18), inset 0 0 15px rgba(99, 102, 241, 0.05);
+}
+
+.glow-box-pink {
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.15), inset 0 0 15px rgba(236, 72, 153, 0.05);
 }
 
 /* Custom scrollbar for alert panels and scrollable views */
@@ -76,14 +119,15 @@ body {
   width: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.01);
   border-radius: 99px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 99px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.18);
 }
+
 

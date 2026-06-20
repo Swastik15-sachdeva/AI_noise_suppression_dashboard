@@ -1,10 +1,31 @@
 import React from 'react';
 
 const AlertPanel = ({ alerts = [] }) => {
-  // Determine if message is warning vs success
-  const isWarning = (msg) => {
+  // Determine alert category style
+  const getAlertStyle = (msg) => {
     const lower = msg.toLowerCase();
-    return lower.includes('detected') || lower.includes('noise') || lower.includes('failed') || lower.includes('warning');
+    if (lower.includes('failed') || lower.includes('error') || lower.includes('offline')) {
+      return {
+        borderClass: 'border-[#141635] border-l-4 border-l-pink-500 bg-pink-500/5',
+        textClass: 'text-slate-200 font-medium',
+        iconColor: 'text-pink-500',
+        type: 'error'
+      };
+    } else if (lower.includes('detected') || lower.includes('noise') || lower.includes('warning')) {
+      return {
+        borderClass: 'border-[#141635] border-l-4 border-l-amber-500 bg-amber-500/5',
+        textClass: 'text-slate-200 font-medium',
+        iconColor: 'text-amber-500',
+        type: 'warning'
+      };
+    } else {
+      return {
+        borderClass: 'border-[#141635] border-l-4 border-l-lime-500 bg-lime-500/5',
+        textClass: 'text-slate-200 font-medium',
+        iconColor: 'text-lime-500',
+        type: 'success'
+      };
+    }
   };
 
   // Group alerts dynamically by session type:
@@ -18,26 +39,24 @@ const AlertPanel = ({ alerts = [] }) => {
   );
 
   const renderAlertCard = (alert, idx) => {
-    const warning = isWarning(alert.message);
+    const style = getAlertStyle(alert.message);
+    const isErrOrWarn = style.type !== 'success';
+    
     return (
       <div
         key={idx}
-        className={`p-3 rounded-xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.01] ${
-          warning
-            ? 'border-slate-800/80 border-l-4 border-l-amber-500 bg-amber-500/5'
-            : 'border-slate-800/80 border-l-4 border-l-emerald-500 bg-emerald-500/5'
-        }`}
+        className={`p-3 rounded-xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.01] ${style.borderClass}`}
       >
         <div className="flex gap-2.5 items-start">
-          {warning ? (
-            // Warning Icon SVG
+          {isErrOrWarn ? (
+            // Warning/Error Icon SVG
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={2}
               stroke="currentColor"
-              className="w-4.5 h-4.5 text-amber-500 flex-shrink-0 mt-0.5"
+              className={`w-4.5 h-4.5 ${style.iconColor} flex-shrink-0 mt-0.5`}
             >
               <path
                 strokeLinecap="round"
@@ -53,7 +72,7 @@ const AlertPanel = ({ alerts = [] }) => {
               viewBox="0 0 24 24"
               strokeWidth={2}
               stroke="currentColor"
-              className="w-4.5 h-4.5 text-emerald-500 flex-shrink-0 mt-0.5"
+              className={`w-4.5 h-4.5 ${style.iconColor} flex-shrink-0 mt-0.5`}
             >
               <path
                 strokeLinecap="round"
@@ -63,7 +82,7 @@ const AlertPanel = ({ alerts = [] }) => {
             </svg>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-200 font-medium leading-relaxed break-words">{alert.message}</p>
+            <p className={`text-xs leading-relaxed break-words ${style.textClass}`}>{alert.message}</p>
             <span className="text-[9px] text-slate-500 uppercase tracking-wider mt-1.5 block font-bold">
               {alert.time}
             </span>
@@ -74,8 +93,8 @@ const AlertPanel = ({ alerts = [] }) => {
   };
 
   return (
-    <div className="h-full p-6 border border-slate-800/80 rounded-2xl bg-slate-900/40 backdrop-blur-md flex flex-col min-h-[300px] shadow-xl">
-      <h3 className="text-sm font-semibold text-white mb-5 shrink-0">Recent Incident Alerts</h3>
+    <div className="h-full p-6 border border-[#141635] rounded-2xl bg-[#0a0b1f]/60 backdrop-blur-md flex flex-col min-h-[300px] shadow-xl hover:border-indigo-500/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all duration-300">
+      <h3 className="text-sm font-semibold text-slate-100 glow-text-white mb-5 shrink-0">Recent Incident Alerts</h3>
       <div className="flex-1 overflow-y-auto space-y-5 pr-1 select-none custom-scrollbar">
         {alerts.length === 0 ? (
           <div className="text-xs text-slate-500 text-center py-10 font-medium">No active session alerts</div>

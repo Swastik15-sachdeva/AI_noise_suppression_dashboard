@@ -431,12 +431,12 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       animationRef.current = requestAnimationFrame(draw);
       analyserRef.current.getByteFrequencyData(dataArray);
 
-      // Smooth background using dark slate
-      ctx.fillStyle = '#0f172a'; // slate-900 (matches app theme)
+      // Smooth background using futuristic deep space color
+      ctx.fillStyle = '#0a0b1f'; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw horizontal grid lines
-      ctx.strokeStyle = '#1e293b'; // slate-800
+      // Draw horizontal grid lines in thin indigo
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)'; 
       ctx.lineWidth = 1;
       const gridCount = 4;
       for (let i = 1; i < gridCount; i++) {
@@ -464,15 +464,15 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
         const y = (canvas.height - barHeight) / 2; // Center bars vertically
 
         // Premium Neon visualization colors:
-        let barColor = '#334155'; // Slate-700 (inactive baseline)
+        let barColor = '#141635'; // Dark baseline
         
         if (isListening) {
           if (recordingState === 'recording') {
-            barColor = i % 2 === 0 ? '#f97316' : '#ef4444'; // Glowing Orange/Red pulse
+            barColor = i % 2 === 0 ? '#ec4899' : '#db2777'; // Glowing Hot Pink/Crimson
           } else if (isSuppressing) {
-            barColor = i % 2 === 0 ? '#10b981' : '#06b6d4'; // Clean Glowing Emerald/Cyan
+            barColor = i % 2 === 0 ? '#00f2fe' : '#06b6d4'; // Electric Cyan/Aqua
           } else {
-            barColor = i % 2 === 0 ? '#6366f1' : '#3b82f6'; // Neon Indigo/Blue raw wave
+            barColor = i % 2 === 0 ? '#a855f7' : '#6366f1'; // Neon Purple/Indigo
           }
         }
 
@@ -500,14 +500,14 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
     const cleaned = noiseType.trim();
     const lower = cleaned.toLowerCase();
     
-    let bg = 'bg-slate-800 text-slate-400 border border-slate-700/60';
+    let bg = 'bg-[#141635] text-slate-400 border border-slate-700/30';
     
     if (lower.includes('traffic')) {
-      bg = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+      bg = 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
     } else if (lower.includes('crowd') || lower.includes('conversation') || lower.includes('speech')) {
       bg = 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
     } else if (lower.includes('wind')) {
-      bg = 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+      bg = 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
     } else if (lower.includes('fan') || lower.includes('ac') || lower.includes('conditioner') || lower.includes('noise')) {
       bg = 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
     } else if (lower.includes('keyboard') || lower.includes('click') || lower.includes('typing')) {
@@ -522,11 +522,11 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
   };
 
   return (
-    <div className="h-full p-6 border border-slate-800/80 rounded-2xl bg-slate-900/40 backdrop-blur-md flex flex-col justify-between shadow-xl">
+    <div className="h-full p-6 border border-[#141635] rounded-2xl bg-[#0a0b1f]/60 backdrop-blur-md flex flex-col justify-between shadow-xl hover:border-indigo-500/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all duration-300">
       <div>
         <div className="flex items-center justify-between mb-4 shrink-0">
           <div>
-            <h3 className="text-sm font-semibold text-white">Live Activity</h3>
+            <h3 className="text-sm font-semibold text-slate-100 glow-text-white">Live Activity</h3>
             <span className="text-[10px] text-slate-400 font-medium">
               {recordingState === 'recording'
                 ? "Recording microphone input..."
@@ -537,12 +537,12 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
           </div>
 
           {/* Basic/Advanced View Mode Toggle Switch */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800/80 text-[10px] font-bold">
+          <div className="flex items-center bg-[#040510] p-1 rounded-lg border border-[#141635] text-[10px] font-bold">
             <button
               onClick={() => setViewMode('basic')}
-              className={`px-2.5 py-1 rounded-md transition-all duration-200 ${
+              className={`px-2.5 py-1 rounded-md transition-all duration-200 cursor-pointer ${
                 viewMode === 'basic' 
-                  ? 'bg-indigo-600 text-white shadow-sm' 
+                  ? 'bg-purple-600 text-purple-50 shadow-[0_0_8px_rgba(16,185,129,0.4)]' 
                   : 'text-slate-500 hover:text-slate-300'
               }`}
             >
@@ -550,9 +550,9 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
             </button>
             <button
               onClick={() => setViewMode('advanced')}
-              className={`px-2.5 py-1 rounded-md transition-all duration-200 ${
+              className={`px-2.5 py-1 rounded-md transition-all duration-200 cursor-pointer ${
                 viewMode === 'advanced' 
-                  ? 'bg-indigo-600 text-white shadow-sm' 
+                  ? 'bg-purple-600 text-purple-50 shadow-[0_0_8px_rgba(16,185,129,0.4)]' 
                   : 'text-slate-500 hover:text-slate-300'
               }`}
             >
@@ -562,7 +562,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
         </div>
         
         {/* Visualizer Display Area */}
-        <div className="h-[95px] rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 relative flex items-center justify-center">
+        <div className="h-[95px] rounded-xl overflow-hidden border border-[#141635] bg-[#040510]/60 relative flex items-center justify-center">
           {viewMode === 'advanced' ? (
             <canvas 
               ref={canvasRef} 
@@ -577,9 +577,9 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
                 <div className="flex items-center gap-4 w-full">
                   {/* Glowing active suppression orb */}
                   <div className="relative flex items-center justify-center w-10 h-10 flex-shrink-0">
-                    <span className={`absolute inset-0 rounded-full ${isSuppressing ? 'bg-emerald-500/20' : 'bg-indigo-500/20'} animate-ping duration-1000`} />
-                    <span className={`absolute w-8 h-8 rounded-full ${isSuppressing ? 'bg-emerald-500/30' : 'bg-indigo-500/30'} animate-pulse`} />
-                    <span className={`w-5 h-5 rounded-full ${isSuppressing ? 'bg-emerald-500' : 'bg-indigo-500'} shadow-lg`} />
+                    <span className={`absolute inset-0 rounded-full ${isSuppressing ? 'bg-cyan-500/20' : 'bg-purple-500/20'} animate-ping duration-1000`} />
+                    <span className={`absolute w-8 h-8 rounded-full ${isSuppressing ? 'bg-cyan-500/30' : 'bg-purple-500/30'} animate-pulse`} />
+                    <span className={`w-5 h-5 rounded-full ${isSuppressing ? 'bg-cyan-400' : 'bg-purple-500'} shadow-lg`} />
                   </div>
                   
                   <div className="flex-1 min-w-0">
@@ -589,7 +589,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
                     <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
                       <span>Live Volume Meter</span>
                       <span>•</span>
-                      <span className={isSuppressing ? 'text-emerald-400 font-semibold' : 'text-indigo-400 font-semibold'}>
+                      <span className={isSuppressing ? 'text-cyan-400 font-semibold' : 'text-purple-400 font-semibold'}>
                         {isSuppressing ? '94% Suppression Rate' : 'Pass-through'}
                       </span>
                     </div>
@@ -597,10 +597,10 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
 
                   {/* Tiny animated volume visualizer bars */}
                   <div className="flex items-end gap-0.5 h-6">
-                    <span className="w-0.5 bg-indigo-500/80 rounded-full animate-[pulse_0.6s_infinite_alternate] h-3" />
-                    <span className="w-0.5 bg-indigo-500/80 rounded-full animate-[pulse_0.4s_infinite_alternate_0.1s] h-5" />
-                    <span className="w-0.5 bg-indigo-500/80 rounded-full animate-[pulse_0.5s_infinite_alternate_0.2s] h-4" />
-                    <span className="w-0.5 bg-indigo-500/80 rounded-full animate-[pulse_0.7s_infinite_alternate_0.15s] h-2" />
+                    <span className="w-0.5 bg-purple-500/80 rounded-full animate-[pulse_0.6s_infinite_alternate] h-3" />
+                    <span className="w-0.5 bg-purple-500/80 rounded-full animate-[pulse_0.4s_infinite_alternate_0.1s] h-5" />
+                    <span className="w-0.5 bg-purple-500/80 rounded-full animate-[pulse_0.5s_infinite_alternate_0.2s] h-4" />
+                    <span className="w-0.5 bg-purple-500/80 rounded-full animate-[pulse_0.7s_infinite_alternate_0.15s] h-2" />
                   </div>
                 </div>
               ) : (
@@ -613,9 +613,9 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
           
           {/* Processing overlay */}
           {recordingState === 'processing' && (
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center border border-slate-800 rounded-xl z-10">
-              <div className="h-6 w-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-              <span className="text-indigo-400 font-bold text-xs tracking-wider animate-pulse">
+            <div className="absolute inset-0 bg-[#040510]/80 backdrop-blur-sm flex flex-col items-center justify-center border border-[#141635] rounded-xl z-10">
+              <div className="h-6 w-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+              <span className="text-purple-400 font-bold text-xs tracking-wider animate-pulse">
                 AI model is processing audio...
               </span>
             </div>
@@ -624,11 +624,11 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
 
         {/* Controls Layout */}
         <div className="mt-4 flex flex-wrap gap-2.5">
-          {/* Main Record Action - Redesigned to Indigo with scaling transition */}
+          {/* Main Record Action - Redesigned to Purple with scaling transition */}
           {recordingState === 'recording' ? (
             <button
               onClick={stopRecording}
-              className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-bold text-xs tracking-wider transition-all duration-300 shadow-md flex items-center justify-center gap-1.5"
+              className="flex-1 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 active:scale-[0.98] text-pink-50 font-black uppercase tracking-wider transition-all duration-300 shadow-md flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(236,72,153,0.4)]"
             >
               ⏹️ Stop & Process Audio
             </button>
@@ -636,7 +636,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
             <button
               onClick={startRecording}
               disabled={recordingState === 'processing'}
-              className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.01] active:scale-[0.99] hover:shadow-[0_0_12px_rgba(99,102,241,0.4)] text-white font-bold text-xs tracking-wider transition-all duration-300 shadow-md flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 hover:scale-[1.01] active:scale-[0.99] hover:shadow-[0_0_15px_rgba(168,85,247,0.5)] text-purple-50 font-black uppercase tracking-wider transition-all duration-300 shadow-md flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               🎙️ Record Audio Session
             </button>
@@ -646,10 +646,10 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
           {recordingState === 'idle' && (
             <button
               onClick={toggleMic}
-              className={`px-3 py-2.5 rounded-xl border text-xs font-bold tracking-wider transition-all duration-300 active:scale-[0.97] ${
+              className={`px-3 py-2.5 rounded-xl border text-xs font-black uppercase tracking-wider transition-all duration-300 active:scale-[0.97] cursor-pointer ${
                 isListening
-                  ? 'bg-blue-600 border-blue-700 text-white hover:bg-blue-500 hover:shadow-[0_0_8px_rgba(37,99,235,0.4)]'
-                  : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                  ? 'bg-cyan-600 border-cyan-500 text-cyan-50 hover:bg-cyan-500 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                  : 'bg-[#040510] border-[#141635] text-slate-400 hover:border-slate-700 hover:bg-[#141635]/50'
               }`}
               title="Toggle live microphone stream"
             >
@@ -661,10 +661,10 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
           {(recordingState === 'idle' || recordingState === 'recording') && (
             <button
               onClick={toggleSuppression}
-              className={`px-3 py-2.5 rounded-xl border text-xs font-bold tracking-wider transition-all duration-300 active:scale-[0.97] ${
+              className={`px-3 py-2.5 rounded-xl border text-xs font-black uppercase tracking-wider transition-all duration-300 active:scale-[0.97] cursor-pointer ${
                 isSuppressing
-                  ? 'bg-emerald-600 border-emerald-700 text-white hover:bg-emerald-500 hover:shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-                  : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                  ? 'bg-cyan-600 border-cyan-500 text-cyan-50 hover:bg-cyan-500 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                  : 'bg-[#040510] border-[#141635] text-slate-400 hover:border-slate-700 hover:bg-[#141635]/50'
               }`}
               title="Toggle AI spectral suppression filtering"
             >
@@ -674,7 +674,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
         </div>
 
         {uploadError && (
-          <div className="mt-3 p-3 bg-rose-500/10 text-rose-400 text-[11px] rounded-xl border border-rose-500/20">
+          <div className="mt-3 p-3 bg-pink-500/10 text-pink-400 text-[11px] rounded-xl border border-pink-500/25 glow-box-pink">
             ⚠️ {uploadError}
           </div>
         )}
@@ -682,7 +682,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       
       {/* Side-by-Side Comparison Players (Available on Success) */}
       {recordingState === 'success' && (beforeAudioUrl || afterAudioUrl) && (
-        <div className="mt-4 border-t border-slate-800/80 pt-4 shrink-0">
+        <div className="mt-4 border-t border-[#141635] pt-4 shrink-0">
           <div className="flex items-center justify-between mb-3.5">
             <div className="flex items-center gap-3">
               <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">Processed Results</span>
@@ -690,23 +690,23 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
             </div>
             <button
               onClick={clearRecordings}
-              className="text-[10px] text-slate-400 hover:text-rose-400 font-bold transition-colors duration-200 uppercase tracking-widest"
+              className="text-[10px] text-slate-400 hover:text-pink-400 font-bold transition-colors duration-200 uppercase tracking-widest cursor-pointer"
             >
               Clear
             </button>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-3 bg-slate-950/40 border border-slate-800/60 rounded-xl shadow-sm">
-              <span className="text-[9px] font-bold text-orange-500 uppercase tracking-widest block mb-1">Before (Original)</span>
+            <div className="p-3 bg-[#040510]/50 border border-[#141635] rounded-xl shadow-sm">
+              <span className="text-[9px] font-black text-pink-400 glow-text-pink uppercase tracking-widest block mb-1">Before (Original)</span>
               {beforeAudioUrl ? (
                 <audio src={beforeAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
               ) : (
                 <div className="h-7 flex items-center justify-center text-[10px] text-slate-500 italic">No audio</div>
               )}
             </div>
-            <div className="p-3 bg-slate-950/40 border border-slate-800/60 rounded-xl shadow-sm">
-              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest block mb-1">After (Suppressed Voice)</span>
+            <div className="p-3 bg-[#040510]/50 border border-cyan-950/30 rounded-xl shadow-sm">
+              <span className="text-[9px] font-black text-cyan-400 glow-text-cyan uppercase tracking-widest block mb-1">After (Suppressed Voice)</span>
               {afterAudioUrl ? (
                 <audio src={afterAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
               ) : (

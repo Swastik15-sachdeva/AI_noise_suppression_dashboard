@@ -97,14 +97,14 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
         const cleaned = noiseType.trim();
         const lower = cleaned.toLowerCase();
         
-        let bg = 'bg-slate-800 text-slate-400 border border-slate-700/60';
+        let bg = 'bg-[#141635] text-slate-400 border border-slate-700/30';
         
         if (lower.includes('traffic')) {
-            bg = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+            bg = 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
         } else if (lower.includes('crowd') || lower.includes('conversation') || lower.includes('speech')) {
             bg = 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
         } else if (lower.includes('wind')) {
-            bg = 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+            bg = 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
         } else if (lower.includes('fan') || lower.includes('ac') || lower.includes('conditioner') || lower.includes('noise')) {
             bg = 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
         } else if (lower.includes('keyboard') || lower.includes('click') || lower.includes('typing')) {
@@ -119,10 +119,10 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
     };
 
     return (
-        <div className="p-6 border border-slate-800/80 rounded-2xl bg-slate-900/40 backdrop-blur-md flex flex-col justify-between h-full shadow-xl">
+        <div className="p-6 border border-[#141635] rounded-2xl bg-[#0a0b1f]/60 backdrop-blur-md flex flex-col justify-between h-full shadow-xl hover:border-indigo-500/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all duration-300">
             <div>
                 <div className="flex items-center justify-between mb-5 shrink-0">
-                    <h3 className="text-sm font-semibold text-white">Audio Processing Hub</h3>
+                    <h3 className="text-sm font-semibold text-slate-100 glow-text-white">Audio Processing Hub</h3>
                     <span className="text-[10px] tracking-widest text-slate-500 uppercase font-bold">AI Uploader</span>
                 </div>
 
@@ -135,8 +135,8 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                     onDrop={handleDrop}
                     className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 text-center select-none ${
                         isDragging 
-                            ? 'border-indigo-500 bg-indigo-500/10 shadow-[0_0_12px_rgba(99,102,241,0.2)]' 
-                            : 'border-slate-800 bg-slate-950/40 hover:border-slate-600 hover:bg-slate-950/60'
+                            ? 'border-cyan-400 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.25)]' 
+                            : 'border-[#141635] bg-[#040510]/50 hover:border-cyan-500/50 hover:bg-[#040510]/70'
                     }`}
                 >
                     <input
@@ -148,7 +148,7 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                     />
                     
                     {/* Audio File Icon */}
-                    <div className={`p-3 rounded-full mb-3 transition-colors duration-300 ${isDragging ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-900 text-slate-400'}`}>
+                    <div className={`p-3 rounded-full mb-3 transition-colors duration-300 ${isDragging ? 'bg-cyan-500/20 text-cyan-400' : 'bg-[#141635] text-slate-400'}`}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75V3m0 0L8.25 6.75M12 3l3.75 3.75M19.5 12a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />
                         </svg>
@@ -162,9 +162,9 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                         <span>Drag your recording here</span>
                         <span>•</span>
                         {/* Tooltip implementation */}
-                        <span className="relative group cursor-pointer inline-flex items-center gap-0.5 text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2">
+                        <span className="relative group cursor-pointer inline-flex items-center gap-0.5 text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-2">
                             <span>Supported Formats</span>
-                            <span className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-slate-950 text-slate-300 text-[10px] rounded-lg py-1.5 px-3 border border-slate-800 whitespace-nowrap shadow-2xl z-30 font-medium">
+                            <span className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-[#040510] text-slate-300 text-[10px] rounded-lg py-1.5 px-3 border border-[#141635] whitespace-nowrap shadow-2xl z-30 font-medium">
                                 WAV, MP3, M4A files supported
                             </span>
                         </span>
@@ -175,10 +175,10 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                     <button
                         onClick={handleUpload}
                         disabled={uploading}
-                        className={`w-full mt-4 py-2.5 rounded-xl text-xs font-bold tracking-wider text-white transition-all duration-300 shadow-md ${
+                        className={`w-full mt-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all duration-300 shadow-md ${
                             uploading 
-                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50 animate-pulse' 
-                                : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.01] active:scale-[0.99] hover:shadow-[0_0_12px_rgba(99,102,241,0.4)]'
+                                ? 'bg-[#141635] text-slate-500 cursor-not-allowed border border-[#141635] animate-pulse' 
+                                : 'bg-purple-600 hover:bg-purple-500 hover:scale-[1.01] active:scale-[0.99] shadow-[0_0_15px_rgba(168,85,247,0.4)] text-purple-50'
                         }`}
                     >
                         {uploading ? (
@@ -191,7 +191,7 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                 )}
 
                 {error && (
-                    <div className="mt-3 p-3 bg-rose-500/10 text-rose-400 text-xs rounded-xl border border-rose-500/20">
+                    <div className="mt-3 p-3 bg-pink-500/10 text-pink-400 text-xs rounded-xl border border-pink-500/25 glow-box-pink">
                         ⚠️ {error}
                     </div>
                 )}
@@ -199,7 +199,7 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
 
             {/* Audio Players & Results */}
             {results && (
-                <div className="mt-5 border-t border-slate-800/80 pt-4 flex-1 flex flex-col justify-end">
+                <div className="mt-5 border-t border-[#141635] pt-4 flex-1 flex flex-col justify-end">
                     <div className="mb-4 flex items-center justify-between">
                         <div>
                             <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">AI Classification</span>
@@ -211,12 +211,12 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                     </div>
 
                     <div className="space-y-3.5">
-                        <div className="bg-slate-950/40 p-2.5 rounded-xl border border-slate-900/60">
-                            <span className="text-[9px] uppercase tracking-widest text-slate-500 block mb-1 font-bold">Original Noisy Audio</span>
+                        <div className="bg-[#040510]/60 p-2.5 rounded-xl border border-[#141635]">
+                            <span className="text-[9px] uppercase tracking-widest text-slate-400 block mb-1 font-bold">Original Noisy Audio</span>
                             <audio src={results.originalAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
                         </div>
-                        <div className="bg-slate-950/40 p-2.5 rounded-xl border border-slate-900/60">
-                            <span className="text-[9px] uppercase tracking-widest text-emerald-500 block mb-1 font-bold">Cleaned Speech (noisereduce Output)</span>
+                        <div className="bg-[#040510]/60 p-2.5 rounded-xl border border-cyan-950/40 shadow-[0_0_10px_rgba(6,182,212,0.05)]">
+                            <span className="text-[9px] uppercase tracking-widest text-cyan-400 glow-text-cyan block mb-1 font-bold">Cleaned Speech (noisereduce Output)</span>
                             <audio src={results.cleanAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
                         </div>
                     </div>

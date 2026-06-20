@@ -4,14 +4,14 @@ const NoiseLevelCard = ({ score = 0 }) => {
   const normalizedScore = Math.max(0, Math.min(100, score || 0));
   
   // Color coding details (lower is better):
-  // Good: <= 30 (emerald), Moderate: 31-65 (amber), Poor: > 65 (rose)
-  let colorClass = 'stroke-emerald-500 text-emerald-400';
+  // Good: <= 30 (lime), Moderate: 31-65 (amber), Poor: > 65 (pink)
+  let colorClass = 'stroke-lime-500 text-lime-400 glow-text-lime';
   let ratingText = 'Good';
   if (normalizedScore > 65) {
-    colorClass = 'stroke-rose-500 text-rose-400';
+    colorClass = 'stroke-pink-500 text-pink-400 glow-text-pink';
     ratingText = 'Poor';
   } else if (normalizedScore > 30) {
-    colorClass = 'stroke-amber-500 text-amber-400';
+    colorClass = 'stroke-amber-500 text-amber-400 glow-text-amber';
     ratingText = 'Moderate';
   }
 
@@ -21,15 +21,15 @@ const NoiseLevelCard = ({ score = 0 }) => {
   const strokeDashoffset = circumference - (normalizedScore / 100) * circumference;
 
   return (
-    <div className="p-5 border border-slate-800/80 rounded-2xl bg-slate-900/40 backdrop-blur-md flex items-center justify-between transition-all duration-300 hover:border-slate-700/60 shadow-lg">
+    <div className="p-5 border border-[#141635] rounded-2xl bg-[#0a0b1f]/60 backdrop-blur-md flex items-center justify-between transition-all duration-300 hover:border-indigo-500/50 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] shadow-lg">
       <div>
         <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-1.5 font-bold">Noise Level</div>
         <div className="flex items-baseline space-x-1.5">
-          <span className="text-2xl font-bold text-white">{normalizedScore}</span>
+          <span className="text-2xl font-black text-slate-100 glow-text-white">{normalizedScore}</span>
           <span className="text-xs text-slate-500 font-medium">/ 100</span>
         </div>
         <div className="text-[10px] mt-1 font-semibold text-slate-500 flex items-center gap-1">
-          Rating: <span className={colorClass.split(' ')[1]}>{ratingText}</span>
+          Rating: <span className={colorClass.split(' ').slice(1).join(' ') + ' font-bold'}>{ratingText}</span>
         </div>
       </div>
 
@@ -39,7 +39,7 @@ const NoiseLevelCard = ({ score = 0 }) => {
             cx="32"
             cy="32"
             r={radius}
-            className="stroke-slate-800"
+            className="stroke-[#141635]"
             strokeWidth={strokeWidth}
             fill="transparent"
           />

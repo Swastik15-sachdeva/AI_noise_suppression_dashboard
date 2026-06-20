@@ -37,16 +37,16 @@ const CloudinaryGallery = ({ refreshTrigger }) => {
     const currentFiles = activeTab === 'before' ? files.before : files.after;
 
     return (
-        <div className="mt-8 border-t border-slate-800/80 pt-8">
-            <h2 className="text-lg font-semibold text-white mb-6">Cloudinary Audio Gallery</h2>
+        <div className="mt-8 border-t border-[#141635] pt-8">
+            <h2 className="text-lg font-black tracking-wider text-slate-100 glow-text-white mb-6">Cloudinary Audio Gallery</h2>
             
             {/* Tabs */}
-            <div className="flex space-x-2 border-b border-slate-800/50 mb-6">
+            <div className="flex space-x-2 border-b border-[#141635]/50 mb-6">
                 <button
                     onClick={() => setActiveTab('before')}
-                    className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                    className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
                         activeTab === 'before' 
-                        ? 'border-indigo-500 text-white' 
+                        ? 'border-purple-500 text-purple-400 glow-text-purple' 
                         : 'border-transparent text-slate-500 hover:text-slate-300'
                     }`}
                 >
@@ -54,9 +54,9 @@ const CloudinaryGallery = ({ refreshTrigger }) => {
                 </button>
                 <button
                     onClick={() => setActiveTab('after')}
-                    className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                    className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
                         activeTab === 'after' 
-                        ? 'border-indigo-500 text-white' 
+                        ? 'border-purple-500 text-purple-400 glow-text-purple' 
                         : 'border-transparent text-slate-500 hover:text-slate-300'
                     }`}
                 >
@@ -65,7 +65,7 @@ const CloudinaryGallery = ({ refreshTrigger }) => {
             </div>
 
             {/* Tab Content */}
-            <div className="p-6 border border-slate-800/80 rounded-2xl bg-slate-900/40 backdrop-blur-md min-h-[200px]">
+            <div className="p-6 border border-[#141635] rounded-2xl bg-[#0a0b1f]/60 backdrop-blur-md min-h-[200px] hover:border-indigo-500/30 transition-all duration-300">
                 {currentFiles.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-500 py-8">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 mb-2 opacity-50">
@@ -76,7 +76,7 @@ const CloudinaryGallery = ({ refreshTrigger }) => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
                         {currentFiles.map((file, idx) => (
-                            <div key={idx} className="bg-slate-950/60 p-4 border border-slate-900/60 rounded-xl shadow-sm hover:border-slate-800 transition-colors">
+                            <div key={idx} className="bg-[#040510]/60 p-4 border border-[#141635]/80 rounded-xl shadow-sm hover:border-cyan-400/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.1)] transition-all duration-300">
                                 <span className="text-xs font-semibold text-slate-300 break-all mb-3 block truncate" title={file.id}>
                                     {file.id}
                                 </span>

@@ -10,6 +10,7 @@ class MetricsResponse(BaseModel):
     voice_clarity: int
     latency: int
     audio_quality: int
+    stoi_score: float
 
 class Alert(BaseModel):
     message: str
@@ -24,3 +25,4 @@ class AudioUploadResponse(BaseModel):
     speech_presence: int
     audio_quality: int
     clean_audio_url: str
+    stoi_score: float

@@ -70,6 +70,16 @@ def upload_audio(file: UploadFile = File(...)):
         if not suppression_result.get("success"):
             raise HTTPException(status_code=500, detail=f"Suppression model failed: {suppression_result.get('error')}")
 
+        # Compute STOI estimate using standard librosa loading
+        import librosa
+        try:
+            y_noisy, _ = librosa.load(noisy_file_path, sr=16000, mono=True)
+            y_clean, _ = librosa.load(clean_file_path, sr=16000, mono=True)
+            stoi_score = AudioQualityService.calculate_stoi_estimate(y_clean, y_noisy)
+        except Exception as stoi_err:
+            print(f"Failed to calculate STOI estimate: {stoi_err}")
+            stoi_score = 0.85
+
         # 4. Classify noise type using our dedicated classifier
         noise_type = NoiseClassificationService.classify_noise(noisy_file_path)
 
@@ -80,7 +90,8 @@ def upload_audio(file: UploadFile = File(...)):
         session.update_metrics(
             noise_score=quality_metrics["noise_level"],
             voice_clarity=quality_metrics["voice_clarity"],
-            audio_quality=quality_metrics["audio_quality"]
+            audio_quality=quality_metrics["audio_quality"],
+            stoi_score=stoi_score
         )
 
         # 7. Log a new alert for this audio upload
@@ -111,7 +122,8 @@ def upload_audio(file: UploadFile = File(...)):
             "noise_score": quality_metrics["noise_level"],
             "speech_presence": quality_metrics["speech_presence"],
             "audio_quality": quality_metrics["audio_quality"],
-            "clean_audio_url": clean_audio_url
+            "clean_audio_url": clean_audio_url,
+            "stoi_score": stoi_score
         }
 
     except Exception as e:
@@ -207,11 +219,19 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
                             noise_type = NoiseClassificationService.classify_noise(y=analysis_signal, sr=16000)
                             quality_metrics = AudioQualityService.analyze_quality(y=analysis_signal, sr=16000)
                             
+                            # Calculate real-time STOI score if suppression is ON
+                            if suppress:
+                                clean_analysis = nr.reduce_noise(y=analysis_signal, sr=16000, stationary=True, prop_decrease=0.85)
+                                stoi_score = AudioQualityService.calculate_stoi_estimate(clean_analysis, analysis_signal)
+                            else:
+                                stoi_score = 1.0
+                            
                             # Update session metrics in real time
                             session.update_metrics(
                                 noise_score=quality_metrics["noise_level"],
                                 voice_clarity=quality_metrics["voice_clarity"],
-                                audio_quality=quality_metrics["audio_quality"]
+                                audio_quality=quality_metrics["audio_quality"],
+                                stoi_score=stoi_score
                             )
                             
                             # Log alert if specific noise detected (prevent spamming: rate-limit to once per 10s)

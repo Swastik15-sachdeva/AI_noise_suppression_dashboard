@@ -8,6 +8,7 @@ import AudioUploadCard from '../components/AudioUploadCard';
 import AudioWaveformCard from '../components/AudioWaveformCard';
 import AlertPanel from '../components/AlertPanel';
 import CloudinaryGallery from '../components/CloudinaryGallery';
+import ModelBenchmarksCard from '../components/ModelBenchmarksCard';
 import { healthService, metricsService, audioService } from '../services/api';
 
 const Dashboard = () => {
@@ -56,7 +57,8 @@ const Dashboard = () => {
       noise_score: data.noise_score,
       voice_clarity: data.voice_clarity,
       latency: metrics?.latency || 50,
-      audio_quality: data.audio_quality
+      audio_quality: data.audio_quality,
+      stoi_score: data.stoi_score || 1.0
     });
     // Refresh alerts to show the new classification log
     audioService.getAlerts().then((res) => {
@@ -93,7 +95,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 shrink-0">
           <MicrophoneStatusCard status={metrics?.microphone_status} />
           <NoiseLevelCard score={metrics?.noise_score} />
-          <VoiceQualityCard clarity={metrics?.voice_clarity} />
+          <VoiceQualityCard clarity={metrics?.voice_clarity} stoi={metrics?.stoi_score} />
           <LatencyCard latency={metrics?.latency} />
         </div>
 
@@ -110,6 +112,11 @@ const Dashboard = () => {
           <div className="md:col-span-1 h-full flex flex-col">
             <AlertPanel alerts={alerts} />
           </div>
+        </div>
+        
+        {/* Model Benchmarks Card */}
+        <div className="shrink-0">
+          <ModelBenchmarksCard />
         </div>
         
         {/* Cloudinary Gallery */}

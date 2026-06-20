@@ -6,7 +6,8 @@ current_metrics = {
     "noise_score": 0,
     "voice_clarity": 100,
     "latency": 50,
-    "audio_quality": 100
+    "audio_quality": 100,
+    "stoi_score": 1.0
 }
 
 # In-memory store for active alerts
@@ -17,11 +18,12 @@ current_alerts = [
     }
 ]
 
-def update_metrics(noise_score: int, voice_clarity: int, audio_quality: int):
+def update_metrics(noise_score: int, voice_clarity: int, audio_quality: int, stoi_score: float = 1.0):
     global current_metrics
     current_metrics["noise_score"] = noise_score
     current_metrics["voice_clarity"] = voice_clarity
     current_metrics["audio_quality"] = audio_quality
+    current_metrics["stoi_score"] = stoi_score
 
 def add_alert(message: str):
     global current_alerts
@@ -40,6 +42,7 @@ def reset_session():
     current_metrics["voice_clarity"] = 100
     current_metrics["latency"] = 50
     current_metrics["audio_quality"] = 100
+    current_metrics["stoi_score"] = 1.0
     
     current_alerts = [
         {

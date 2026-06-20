@@ -1,7 +1,8 @@
 import React from 'react';
 
-const VoiceQualityCard = ({ clarity = 0 }) => {
+const VoiceQualityCard = ({ clarity = 0, stoi = 1.0 }) => {
   const normalizedClarity = Math.max(0, Math.min(100, clarity || 0));
+  const normalizedStoi = stoi !== undefined ? stoi : 1.0;
   
   // Color coding details (higher is better):
   // Good: >= 75 (lime), Moderate: 45-74 (amber), Poor: < 45 (pink)
@@ -31,8 +32,9 @@ const VoiceQualityCard = ({ clarity = 0 }) => {
           <span className="text-2xl font-black text-cyan-400 glow-text-cyan">{normalizedClarity}</span>
           <span className="text-xs text-slate-500 font-medium">/ 100</span>
         </div>
-        <div className="text-[10px] mt-1 font-semibold text-slate-500 flex items-center gap-1">
-          Rating: <span className={`${ratingColorClass} font-bold`}>{ratingText}</span>
+        <div className="text-[9px] mt-1 font-semibold text-slate-500 flex flex-col gap-0.5">
+          <div>Rating: <span className={`${ratingColorClass} font-bold`}>{ratingText}</span></div>
+          <div>STOI Score: <span className="text-cyan-400 font-bold">{normalizedStoi.toFixed(2)}</span></div>
         </div>
       </div>
 

@@ -623,7 +623,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
         </div>
 
         {/* Controls Layout */}
-        <div className="mt-4 flex gap-2.5">
+        <div className="mt-4 flex flex-wrap gap-2.5">
           {/* Main Record Action - Redesigned to Indigo with scaling transition */}
           {recordingState === 'recording' ? (
             <button

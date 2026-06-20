@@ -27,7 +27,7 @@ const Dashboard = () => {
       setSystemStatus(healthRes.data.status);
       setMetrics(metricsRes.data);
       setAlerts(alertsRes.data);
-    } catch (err) {
+    } catch {
       setSystemStatus('offline');
     } finally {
       setLoading(false);

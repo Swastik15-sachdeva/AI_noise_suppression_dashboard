@@ -15,9 +15,6 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
   const [beforeAudioUrl, setBeforeAudioUrl] = useState(null);
   const [afterAudioUrl, setAfterAudioUrl] = useState(null);
   const [noiseClassification, setNoiseClassification] = useState(null);
-  const [voiceClarityScore, setVoiceClarityScore] = useState(null);
-  const [noiseLevelScore, setNoiseLevelScore] = useState(null);
-  const [audioQualityScore, setAudioQualityScore] = useState(null);
   const [uploadError, setUploadError] = useState(null);
 
   const canvasRef = useRef(null);
@@ -208,7 +205,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
     } else {
       try {
         analyser.disconnect(audioCtx.destination);
-      } catch (e) {
+      } catch {
         // Safe to ignore if not connected
       }
     }
@@ -271,7 +268,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
     } else {
       try {
         analyser.disconnect(audioCtx.destination);
-      } catch (e) {
+      } catch {
         // Safe to ignore
       }
     }
@@ -363,9 +360,6 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
         const cleanUrl = data.clean_audio_url.startsWith('http') ? data.clean_audio_url : `${API_BASE_URL}${data.clean_audio_url}`;
         setAfterAudioUrl(cleanUrl);
         setNoiseClassification(data.noise_type);
-        setVoiceClarityScore(data.voice_clarity);
-        setNoiseLevelScore(data.noise_score);
-        setAudioQualityScore(data.audio_quality);
         setRecordingState('success');
 
         // Update dashboard metrics
@@ -435,9 +429,6 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
     setBeforeAudioUrl(null);
     setAfterAudioUrl(null);
     setNoiseClassification(null);
-    setVoiceClarityScore(null);
-    setNoiseLevelScore(null);
-    setAudioQualityScore(null);
     setRecordingState('idle');
     setUploadError(null);
   };
@@ -531,6 +522,7 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
     return () => {
       stopListening();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const renderNoiseBadge = (noiseType) => {

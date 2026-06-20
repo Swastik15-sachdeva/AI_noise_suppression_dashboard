@@ -182,14 +182,10 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True):
                     # Keep only the last 3 seconds
                     analysis_signal = full_signal[-48000:]
                     
-                    # Create temporary unique file for analysis
-                    temp_filename = f"temp_stream_{uuid.uuid4().hex}.wav"
                     try:
-                        sf.write(temp_filename, analysis_signal, 16000)
-                        
-                        # Analyze noise type and quality
-                        noise_type = NoiseClassificationService.classify_noise(temp_filename)
-                        quality_metrics = AudioQualityService.analyze_quality(temp_filename)
+                        # Analyze noise type and quality in-memory (no disk IO!)
+                        noise_type = NoiseClassificationService.classify_noise(y=analysis_signal, sr=16000)
+                        quality_metrics = AudioQualityService.analyze_quality(y=analysis_signal, sr=16000)
                         
                         # Update session metrics in real time
                         session.update_metrics(
@@ -207,9 +203,6 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True):
                             
                     except Exception as analysis_err:
                         print(f"Error in stream analysis: {str(analysis_err)}")
-                    finally:
-                        if os.path.exists(temp_filename):
-                            os.remove(temp_filename)
                     
                     # Reset buffer to keep sliding window context
                     rolling_buffer = [analysis_signal]
@@ -224,11 +217,11 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True):
         # Save session to Cloudinary
         if full_session_buffer:
             session_audio = np.concatenate(full_session_buffer)
-            session_filename = f"session_{uuid.uuid4().hex}.wav"
             try:
-                sf.write(session_filename, session_audio, 16000)
-                with open(session_filename, "rb") as f:
-                    file_bytes = f.read()
+                import io
+                wav_buffer = io.BytesIO()
+                sf.write(wav_buffer, session_audio, 16000, format='WAV')
+                file_bytes = wav_buffer.getvalue()
                     
                 branch = get_current_branch()
                 folder = f"{branch}/afterNoiseSuppression" if suppress else f"{branch}/beforeNoiseSuppression"
@@ -240,9 +233,6 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True):
                 print(f"Uploaded live session to {folder}")
             except Exception as e:
                 print(f"Failed to save stream to Cloudinary: {e}")
-            finally:
-                if os.path.exists(session_filename):
-                    os.remove(session_filename)
 
     except Exception as e:
         print(f"Error in WebSocket audio stream: {str(e)}")

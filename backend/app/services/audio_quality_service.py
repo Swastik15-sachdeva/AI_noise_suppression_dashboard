@@ -12,12 +12,14 @@ class AudioQualityService:
     """
     
     @staticmethod
-    def analyze_quality(audio_path: str) -> dict:
+    def analyze_quality(audio_path: str = None, y: np.ndarray = None, sr: int = 16000) -> dict:
         """
-        Analyzes audio quality metrics for an input audio file.
+        Analyzes audio quality metrics for an input audio file or preloaded numpy waveform buffer.
         
         Args:
-            audio_path: Path to the audio file.
+            audio_path: Path to the audio file (optional if y is provided).
+            y: Preloaded numpy array of the audio waveform (optional).
+            sr: Sample rate of the preloaded audio (default: 16000).
             
         Returns:
             dict: Dictionary containing:
@@ -27,11 +29,12 @@ class AudioQualityService:
                 - audio_quality (0-100)
         """
         try:
-            if not os.path.exists(audio_path):
-                raise FileNotFoundError(f"Audio file not found: {audio_path}")
+            if y is None:
+                if not audio_path or not os.path.exists(audio_path):
+                    raise FileNotFoundError(f"Audio file not found or invalid path: {audio_path}")
             
-            # Load audio (downsample to 16kHz for uniform processing, mono)
-            y, sr = librosa.load(audio_path, sr=16000, mono=True)
+                # Load audio (downsample to 16kHz for uniform processing, mono)
+                y, sr = librosa.load(audio_path, sr=16000, mono=True)
             
             if len(y) == 0:
                 return {

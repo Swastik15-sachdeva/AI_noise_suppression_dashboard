@@ -9,9 +9,9 @@ class NoiseClassificationService:
     """
 
     @staticmethod
-    def classify_noise(audio_path: str) -> str:
+    def classify_noise(audio_path: str = None, y: np.ndarray = None, sr: int = 16000) -> str:
         """
-        Classifies the type of background noise present in the audio file.
+        Classifies the type of background noise present in the audio file or numpy waveform buffer.
         
         Expected Categories:
         - Fan Noise
@@ -22,17 +22,20 @@ class NoiseClassificationService:
         - Other (or Clean)
         
         Args:
-            audio_path: Path to the audio file.
+            audio_path: Path to the audio file (optional if y is provided).
+            y: Preloaded numpy array of the audio waveform (optional).
+            sr: Sample rate of the preloaded audio (default: 16000).
             
         Returns:
             str: Classified noise category.
         """
         try:
-            if not os.path.exists(audio_path):
-                raise FileNotFoundError(f"Audio file not found: {audio_path}")
+            if y is None:
+                if not audio_path or not os.path.exists(audio_path):
+                    raise FileNotFoundError(f"Audio file not found or invalid path: {audio_path}")
 
-            # Load audio (downsample to 16kHz, mono)
-            y, sr = librosa.load(audio_path, sr=16000, mono=True)
+                # Load audio (downsample to 16kHz, mono)
+                y, sr = librosa.load(audio_path, sr=16000, mono=True)
             
             if len(y) == 0:
                 return "Other"

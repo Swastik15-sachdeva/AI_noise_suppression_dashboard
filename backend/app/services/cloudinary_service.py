@@ -33,6 +33,19 @@ class CloudinaryService:
             raise Exception("Failed to upload audio to Cloudinary")
 
     @staticmethod
+    def delete_audio(public_id: str) -> bool:
+        """Deletes an audio file from Cloudinary by its public ID."""
+        try:
+            response = cloudinary.uploader.destroy(
+                public_id,
+                resource_type="video"
+            )
+            return response.get("result") == "ok"
+        except Exception as e:
+            print(f"Cloudinary delete error: {e}")
+            return False
+
+    @staticmethod
     def get_audio_files(folder: str) -> list:
         """Gets a list of audio files from a specific folder."""
         try:

@@ -35,7 +35,15 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    const initDashboard = async () => {
+      try {
+        await metricsService.resetMetrics();
+      } catch (err) {
+        console.error("Failed to reset metrics:", err);
+      }
+      fetchData();
+    };
+    initDashboard();
     // Poll for alerts and online status check every 2 seconds for real-time updates
     const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
@@ -60,10 +68,17 @@ const Dashboard = () => {
 
   if (loading && !metrics) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-400 gap-4">
-        <div className="h-7 w-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-[10px] tracking-widest uppercase font-semibold text-slate-500">
-          Loading Dashboard...
+      <div className="relative min-h-screen w-screen overflow-hidden flex flex-col items-center justify-center bg-[#070913] text-slate-400 gap-4">
+        {/* Dynamic Background Glow Blobs for loading state */}
+        <div className="glow-blob glow-blob-1"></div>
+        <div className="glow-blob glow-blob-2"></div>
+        <div className="glow-blob glow-blob-3"></div>
+
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="h-7 w-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="text-[10px] tracking-widest uppercase font-semibold text-slate-500">
+            Loading Dashboard...
+          </div>
         </div>
       </div>
     );

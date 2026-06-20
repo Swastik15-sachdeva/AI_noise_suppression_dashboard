@@ -32,3 +32,18 @@ def add_alert(message: str):
     })
     # Keep only the 10 most recent alerts
     current_alerts = current_alerts[:10]
+
+def reset_session():
+    global current_metrics, current_alerts
+    current_metrics["microphone_status"] = "connected"
+    current_metrics["noise_score"] = 0
+    current_metrics["voice_clarity"] = 100
+    current_metrics["latency"] = 50
+    current_metrics["audio_quality"] = 100
+    
+    current_alerts = [
+        {
+            "message": "System initialized and ready.",
+            "time": datetime.datetime.now().strftime("%I:%M %p")
+        }
+    ]

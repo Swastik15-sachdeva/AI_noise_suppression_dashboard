@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-border: #334155;
+  --color-background: #070913;
+  --color-surface: #0f1322;
+  --color-border: #1e293b;
 }
 
 body {
@@ -11,4 +11,79 @@ body {
   color: white;
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
 }
+
+/* Premium Ambient Glow Blobs */
+.glow-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.18;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform;
+  z-index: 0;
+}
+
+.glow-blob-1 {
+  top: -15%;
+  left: -15%;
+  width: 55vw;
+  height: 55vw;
+  background: radial-gradient(circle, #4f46e5 0%, #312e81 80%, transparent 100%);
+  animation: float-blob-1 30s infinite alternate ease-in-out;
+}
+
+.glow-blob-2 {
+  bottom: -15%;
+  right: -15%;
+  width: 65vw;
+  height: 65vw;
+  background: radial-gradient(circle, #0891b2 0%, #0c4a6e 80%, transparent 100%);
+  animation: float-blob-2 35s infinite alternate ease-in-out;
+}
+
+.glow-blob-3 {
+  top: 35%;
+  right: 15%;
+  width: 45vw;
+  height: 45vw;
+  background: radial-gradient(circle, #db2777 0%, #701a75 80%, transparent 100%);
+  animation: float-blob-3 25s infinite alternate ease-in-out;
+}
+
+@keyframes float-blob-1 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(12%, 15%) scale(1.15); }
+  100% { transform: translate(-8%, -10%) scale(0.9); }
+}
+
+@keyframes float-blob-2 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-15%, -10%) scale(0.85); }
+  100% { transform: translate(10%, 12%) scale(1.2); }
+}
+
+@keyframes float-blob-3 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(10%, -15%) scale(1.1); }
+  100% { transform: translate(-12%, 8%) scale(0.95); }
+}
+
+/* Custom scrollbar for alert panels and scrollable views */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 99px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+

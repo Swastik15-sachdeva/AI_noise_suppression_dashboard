@@ -41,7 +41,7 @@ def get_alerts():
 @router.post("/audio/upload", response_model=AudioUploadResponse)
 def upload_audio(file: UploadFile = File(...)):
     try:
-        # 1. Save uploaded file to noisy uploads folder locally and to Cloudinary
+        # 1. Save uploaded file to noisy uploads folder locally
         file_bytes = file.file.read()
         file.file.seek(0)
         
@@ -51,19 +51,16 @@ def upload_audio(file: UploadFile = File(...)):
             
         branch = get_current_branch()
         
-        cloudinary_url = CloudinaryService.upload_audio(
-            file_bytes=file_bytes, 
-            folder=f"{branch}/beforeNoiseSuppression", 
-            filename=file.filename.split('.')[0]
-        )
-        
-        # UI testing ke liye dummy audio ko afterNoiseSuppression mein daal rahe hain.
-        # Yahan par aapko apna actual ML model ka output dalna hai.
-        CloudinaryService.upload_audio(
-            file_bytes=file_bytes, 
-            folder=f"{branch}/afterNoiseSuppression", 
-            filename=file.filename.split('.')[0] + "_clean"
-        )
+        # Upload raw/noisy audio to Cloudinary only if credentials are configured
+        if os.getenv("CLOUDINARY_CLOUD_NAME"):
+            try:
+                cloudinary_url = CloudinaryService.upload_audio(
+                    file_bytes=file_bytes, 
+                    folder=f"{branch}/beforeNoiseSuppression", 
+                    filename=file.filename.split('.')[0]
+                )
+            except Exception as upload_err:
+                print(f"Failed to upload raw audio to Cloudinary: {str(upload_err)}")
         
         # 2. Define path for clean audio
         clean_file_path = os.path.join(UPLOAD_DIR_CLEAN, file.filename)
@@ -134,9 +131,12 @@ def get_audio_files():
         raise HTTPException(status_code=500, detail=f"Failed to fetch Cloudinary files: {str(e)}")
 
 @router.websocket("/audio/stream")
-async def audio_stream(websocket: WebSocket, suppress: bool = True):
+async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool = False):
     await websocket.accept()
     print(f"WebSocket connection established for real-time audio stream. Suppression: {suppress}")
+    
+    # Update microphone status in session to streaming
+    session.current_metrics["microphone_status"] = "streaming"
     
     # Buffers to calculate live metrics (3 seconds sliding window)
     rolling_buffer = []
@@ -214,8 +214,8 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True):
                 
     except WebSocketDisconnect:
         print("WebSocket client disconnected")
-        # Save session to Cloudinary
-        if full_session_buffer:
+        # Save session to Cloudinary only if explicitly requested and credentials are configured
+        if save and full_session_buffer and os.getenv("CLOUDINARY_CLOUD_NAME"):
             session_audio = np.concatenate(full_session_buffer)
             try:
                 import io
@@ -236,3 +236,22 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True):
 
     except Exception as e:
         print(f"Error in WebSocket audio stream: {str(e)}")
+        
+    finally:
+        # Reset microphone status and metrics on disconnect/error
+        session.current_metrics["microphone_status"] = "connected"
+        session.current_metrics["noise_score"] = 0
+        session.current_metrics["voice_clarity"] = 100
+        session.current_metrics["audio_quality"] = 100
+        print("WebSocket stream finished: Reset microphone status and metrics to defaults.")
+
+@router.delete("/audio/files")
+def delete_audio(public_id: str):
+    try:
+        success = CloudinaryService.delete_audio(public_id)
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to delete file from Cloudinary")
+        return {"status": "success", "message": "File deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

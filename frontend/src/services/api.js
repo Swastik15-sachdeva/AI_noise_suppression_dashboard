@@ -15,6 +15,7 @@ export const healthService = {
 
 export const metricsService = {
   getMetrics: () => apiClient.get('/metrics'),
+  resetMetrics: () => apiClient.post('/metrics/reset'),
 };
 
 export const audioService = {
@@ -29,6 +30,7 @@ export const audioService = {
     });
   },
   getCloudinaryFiles: () => apiClient.get('/audio/files'),
+  deleteCloudinaryFile: (publicId) => apiClient.delete('/audio/files', { params: { public_id: publicId } }),
 };
 
 export default apiClient;

@@ -8,3 +8,8 @@ router = APIRouter(tags=["Metrics"])
 def get_metrics():
     # Return the dynamic metrics stored in memory
     return session.current_metrics
+
+@router.post("/metrics/reset")
+def reset_metrics():
+    session.reset_session()
+    return {"status": "success", "message": "Session metrics and alerts reset."}

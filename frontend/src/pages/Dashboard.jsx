@@ -36,8 +36,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchData();
-    // Poll for alerts and online status check every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    // Poll for alerts and online status check every 2 seconds for real-time updates
+    const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
   }, []);
 

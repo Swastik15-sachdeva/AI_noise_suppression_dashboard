@@ -6,10 +6,29 @@ node_modules/
 frontend/node_modules/
 uploads/
 backend/uploads/
+
+# Python bytecode cache – never track compiled files
 __pycache__/
+**/__pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Environment & secrets
 .env
+
+# Build outputs
 dist/
+frontend/dist/
+
+# Editor / tool caches
 .eslintcache
+*.egg-info/
+
+# One-off scripts & test artefacts
 generate_test_audio.py
 sample_noisy_audio.wav
+
+# Vite scaffold boilerplate (unused)
+frontend/src/assets/react.svg
+frontend/src/assets/vite.svg

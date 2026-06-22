@@ -118,7 +118,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
           <div className="md:col-span-2 flex flex-col gap-6">
             <div className="flex-1 min-h-fit">
-              <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
+              <AudioUploadCard onUploadSuccess={handleUploadSuccess} selectedModel={selectedModel} />
             </div>
             <div className="min-h-fit">
               <AudioWaveformCard

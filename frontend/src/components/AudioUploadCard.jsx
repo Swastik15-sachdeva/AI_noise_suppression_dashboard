@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { audioService } from '../services/api';
 
-const AudioUploadCard = ({ onUploadSuccess }) => {
+const AudioUploadCard = ({ onUploadSuccess, selectedModel }) => {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState(null);
@@ -24,7 +24,7 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
             setUploading(true);
             setError(null);
 
-            const response = await audioService.uploadAudio(file);
+            const response = await audioService.uploadAudio(file, selectedModel);
             const data = response.data;
 
             if (data.status === 'success') {
@@ -37,7 +37,8 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                     audioQuality: data.audio_quality,
                     cleanAudioUrl: cleanUrl,
                     originalAudioUrl: URL.createObjectURL(file),
-                    noiseBreakdown: data.noise_breakdown || {}
+                    noiseBreakdown: data.noise_breakdown || {},
+                    modelUsed: data.model_used
                 });
 
                 // Notify parent dashboard to update general metrics & alerts list
@@ -266,7 +267,7 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                             <audio src={results.originalAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
                         </div>
                         <div className="bg-[#040510]/60 p-2.5 rounded-xl border border-cyan-950/40 shadow-[0_0_10px_rgba(6,182,212,0.05)]">
-                            <span className="text-[9px] uppercase tracking-widest text-cyan-400 glow-text-cyan block mb-1 font-bold">Cleaned Speech (noisereduce Output)</span>
+                            <span className="text-[9px] uppercase tracking-widest text-cyan-400 glow-text-cyan block mb-1 font-bold">Cleaned Speech ({results.modelUsed || 'noisereduce'} Output)</span>
                             <audio src={results.cleanAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
                         </div>
                     </div>

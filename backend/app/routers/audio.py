@@ -138,7 +138,8 @@ def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
             "audio_quality": quality_metrics["audio_quality"],
             "clean_audio_url": clean_audio_url,
             "stoi_score": stoi_score,
-            "noise_breakdown": noise_breakdown
+            "noise_breakdown": noise_breakdown,
+            "model_used": model
         }
 
     except Exception as e:
@@ -152,7 +153,8 @@ def get_audio_files():
         after_files = CloudinaryService.get_audio_files(f"{branch}/afterNoiseSuppression")
         return {
             "before": before_files,
-            "after": after_files
+            "after": after_files,
+            "configured": bool(os.getenv("CLOUDINARY_CLOUD_NAME"))
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch Cloudinary files: {str(e)}")

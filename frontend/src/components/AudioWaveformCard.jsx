@@ -383,7 +383,7 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
       const audioFile = new File([wavBlob], `recording_${Date.now()}.wav`, { type: 'audio/wav' });
 
       // 4. Send to backend
-      const response = await audioService.uploadAudio(audioFile);
+      const response = await audioService.uploadAudio(audioFile, selectedModel);
       const data = response.data;
 
       if (data.status === 'success') {

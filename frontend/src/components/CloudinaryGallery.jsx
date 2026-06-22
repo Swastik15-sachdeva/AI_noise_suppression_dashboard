@@ -5,6 +5,7 @@ const CloudinaryGallery = ({ refreshTrigger }) => {
     const [files, setFiles] = useState({ before: [], after: [] });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('before'); // 'before' or 'after'
+    const [configured, setConfigured] = useState(true);
 
     useEffect(() => {
         const fetchFiles = async () => {
@@ -12,6 +13,9 @@ const CloudinaryGallery = ({ refreshTrigger }) => {
                 setLoading(true);
                 const response = await audioService.getCloudinaryFiles();
                 setFiles(response.data);
+                if (response.data && typeof response.data.configured === 'boolean') {
+                    setConfigured(response.data.configured);
+                }
             } catch (error) {
                 console.error("Failed to fetch Cloudinary files", error);
             } finally {
@@ -66,7 +70,19 @@ const CloudinaryGallery = ({ refreshTrigger }) => {
 
             {/* Tab Content */}
             <div className="p-6 border border-[#141635] rounded-2xl bg-[#0a0b1f]/60 backdrop-blur-md min-h-[200px] hover:border-indigo-500/30 transition-all duration-300">
-                {currentFiles.length === 0 ? (
+                {!configured ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 py-8 text-center max-w-md mx-auto gap-3">
+                        <div className="p-3 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                            </svg>
+                        </div>
+                        <h4 className="text-xs font-bold text-amber-400 uppercase tracking-widest">Cloudinary Config Required</h4>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                            To view and persist audio files in this gallery, please configure your Cloudinary credentials (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`) in your backend `.env` file.
+                        </p>
+                    </div>
+                ) : currentFiles.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-500 py-8">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 mb-2 opacity-50">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75V3m0 0L8.25 6.75M12 3l3.75 3.75M19.5 12a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />

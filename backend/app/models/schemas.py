@@ -27,3 +27,4 @@ class AudioUploadResponse(BaseModel):
     clean_audio_url: str
     stoi_score: float
     noise_breakdown: Optional[Dict[str, float]] = None
+    model_used: Optional[str] = None

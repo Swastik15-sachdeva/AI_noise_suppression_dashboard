@@ -20,10 +20,11 @@ export const metricsService = {
 
 export const audioService = {
   getAlerts: () => apiClient.get('/alerts'),
-  uploadAudio: (file) => {
+  uploadAudio: (file, model) => {
     const formData = new FormData();
     formData.append('file', file);
-    return apiClient.post('/audio/upload', formData, {
+    const url = model ? `/audio/upload?model=${model}` : '/audio/upload';
+    return apiClient.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

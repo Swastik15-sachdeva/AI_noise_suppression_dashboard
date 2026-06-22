@@ -12,7 +12,7 @@ except ImportError:
 
 # Public pretrained ONNX model weight URLs
 DTLN_URL     = "https://github.com/breizhn/DTLN/raw/master/pretrained_model/model_1.onnx"
-RNNOISE_URL  = "https://github.com/shome-r/rnnoise-onnx/raw/main/rnnoise.onnx"
+RNNOISE_URL  = "https://huggingface.co/niobures/RNNoise/resolve/main/models/ailia-models/rnn_model.onnx"
 
 # ── DTLN constants (confirmed by model inspection) ────────────────────────────
 # Input  0:  input_2          [1, 1, 257]    – FFT magnitude spectrum (257 bins)

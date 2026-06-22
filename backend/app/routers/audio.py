@@ -93,8 +93,9 @@ def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
             print(f"Failed to calculate STOI estimate: {stoi_err}")
             stoi_score = 0.85
 
-        # 4. Classify noise type using our dedicated classifier (returns dominant + full breakdown)
-        noise_type, noise_breakdown = NoiseClassificationService.classify_noise_with_scores(noisy_file_path)
+        # 4. Classify noise type using our dedicated classifier (returns list + full breakdown)
+        detected_noises, noise_breakdown = NoiseClassificationService.classify_noise_with_scores(noisy_file_path)
+        dominant_noise = detected_noises[0] if detected_noises else "Other"
 
         # 5. Analyze audio quality metrics using our quality service
         quality_metrics = AudioQualityService.analyze_quality(noisy_file_path)
@@ -109,7 +110,7 @@ def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
 
         # 7. Log a new alert for this audio upload
         session.add_alert(
-            f"Processed {file.filename}: Dominant noise was '{noise_type}' (Level: {quality_metrics['noise_level']}%)."
+            f"Processed {file.filename}: Dominant noise was '{dominant_noise}' (Level: {quality_metrics['noise_level']}%)."
         )
 
         # 8. Upload clean audio to Cloudinary if credentials are configured
@@ -130,7 +131,7 @@ def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
         return {
             "message": f"Successfully processed file: {file.filename}",
             "status": "success",
-            "noise_type": noise_type,
+            "noise_type": dominant_noise,
             "voice_clarity": quality_metrics["voice_clarity"],
             "noise_score": quality_metrics["noise_level"],
             "speech_presence": quality_metrics["speech_presence"],

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { audioService } from '../services/api';
 
-const AudioWaveformCard = ({ onUploadSuccess }) => {
+const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'noisereduce' }) => {
   const [isListening, setIsListening] = useState(false);
   const [isSuppressing, setIsSuppressing] = useState(false);
   const [recordingState, setRecordingState] = useState('idle'); // 'idle', 'recording', 'processing', 'success', 'error'
@@ -31,7 +31,8 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
   // Recording Buffer Ref
   const recordingSamplesRef = useRef([]);
   const sourceRef = useRef(null);
-  const sendTimesRef = useRef([]);
+  const lastSendTimeRef = useRef(null);   // only the most recent send timestamp
+  const rttSamplesRef   = useRef([]);     // rolling window of recent RTTs for smoothing
 
   // WAV encoder helper function
   const bufferToWav = (buffer, sampleRate) => {
@@ -83,14 +84,15 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
   };
 
   // Get WebSocket URL dynamically based on API_BASE_URL config
-  const getWebSocketUrl = (shouldSuppress) => {
+  const getWebSocketUrl = (shouldSuppress, model) => {
     const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const wsBase = apiBase.replace(/^http/, 'ws');
-    return `${wsBase}/audio/stream?suppress=${shouldSuppress}`;
+    // Always include the model param so DTLN/RNNoise are actually selected
+    return `${wsBase}/audio/stream?suppress=${shouldSuppress}&model=${model || selectedModel}`;
   };
 
   // Helper to connect/reconnect WebSocket
-  const connectWebSocket = (shouldSuppress) => {
+  const connectWebSocket = (shouldSuppress, model) => {
     return new Promise((resolve, reject) => {
       // Close any existing WebSocket first
       if (socketRef.current) {
@@ -106,26 +108,56 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       if (audioContextRef.current) {
         nextPlayTimeRef.current = audioContextRef.current.currentTime;
       }
-      sendTimesRef.current = [];
+      lastSendTimeRef.current = null;
+      rttSamplesRef.current = [];
 
-      const wsUrl = getWebSocketUrl(shouldSuppress);
+      const wsUrl = getWebSocketUrl(shouldSuppress, model);
       console.log(`Connecting to WebSocket: ${wsUrl}`);
       const ws = new WebSocket(wsUrl);
       ws.binaryType = 'arraybuffer';
       socketRef.current = ws;
 
       ws.onopen = () => {
-        console.log(`Connected to WebSocket (suppress=${shouldSuppress})`);
+        console.log(`Connected to WebSocket (suppress=${shouldSuppress}, model=${model || selectedModel})`);
         resolve();
       };
 
       ws.onmessage = (e) => {
-        // Calculate WebSocket RTT latency and send back score
-        if (sendTimesRef.current.length > 0) {
-          const sentTime = sendTimesRef.current.shift();
-          const rtt = performance.now() - sentTime;
+        // Branch: text frames carry live metrics JSON, binary frames carry audio
+        if (typeof e.data === 'string') {
+          try {
+            const payload = JSON.parse(e.data);
+            if (payload.type === 'metrics' && onLiveMetrics) {
+              // Push live metrics directly to Dashboard — no REST poll lag
+              onLiveMetrics({
+                noise_score: payload.noise_score,
+                voice_clarity: payload.voice_clarity,
+                audio_quality: payload.audio_quality,
+                stoi_score: payload.stoi_score,
+                latency: payload.latency,
+              });
+            }
+          } catch (parseErr) {
+            console.warn('Failed to parse WS text frame:', parseErr);
+          }
+          return; // Done — not an audio frame
+        }
+
+        // Binary audio frame — calculate RTT using the most-recent send time only.
+        // Using shift() on a growing queue produced stale timestamps (4000ms+);
+        // overwriting lastSendTimeRef ensures we always measure the current chunk.
+        if (lastSendTimeRef.current !== null) {
+          const rtt = performance.now() - lastSendTimeRef.current;
+          lastSendTimeRef.current = null; // consumed
+
+          // Smooth over the last 5 samples to reduce jitter
+          const samples = rttSamplesRef.current;
+          samples.push(rtt);
+          if (samples.length > 5) samples.shift();
+          const smoothedRtt = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ latency: Math.round(rtt) }));
+            ws.send(JSON.stringify({ latency: smoothedRtt }));
           }
         }
 
@@ -229,16 +261,16 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
 
         const ws = socketRef.current;
         if (ws && ws.readyState === WebSocket.OPEN) {
-          // Record current timestamp for latency tracking
-          const sendTime = performance.now();
-          sendTimesRef.current.push(sendTime);
+          // Overwrite (not push) so RTT always reflects the most recent chunk,
+          // not a stale timestamp from a backed-up queue
+          lastSendTimeRef.current = performance.now();
           ws.send(inputData.buffer);
         }
       };
     }
 
-    // 7. Establish WebSocket connection
-    await connectWebSocket(shouldSuppress);
+    // 7. Establish WebSocket connection (pass model so backend selects the right suppressor)
+    await connectWebSocket(shouldSuppress, selectedModel);
   };
 
   // Start live monitoring or real-time streaming
@@ -273,9 +305,9 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
       }
     }
 
-    // Swaps WebSocket connection with new suppression flag
+    // Swaps WebSocket connection with new suppression flag (preserve current model)
     try {
-      await connectWebSocket(enable);
+      await connectWebSocket(enable, selectedModel);
     } catch (err) {
       console.error('Error toggling suppression live state:', err);
     }
@@ -290,8 +322,8 @@ const AudioWaveformCard = ({ onUploadSuccess }) => {
 
       if (isListening && audioContextRef.current && streamRef.current) {
         console.log('Reusing active audio context and microphone stream for recording');
-        // WebSocket must match active suppression state
-        await connectWebSocket(isSuppressing);
+        // WebSocket must match active suppression state and selected model
+        await connectWebSocket(isSuppressing, selectedModel);
       } else {
         await initAudioAndWebSocket(isSuppressing);
         setIsListening(true);

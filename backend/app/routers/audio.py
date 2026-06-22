@@ -9,6 +9,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, WebSocket, WebSo
 from typing import List
 from app.models.schemas import Alert, AudioUploadResponse
 from app.services import session
+from app.services.onnx_suppression_service import ONNXSuppressionService
 from app.services.noise_suppression_service import NoiseSuppressionService
 from app.services.noise_classification_service import NoiseClassificationService
 from app.services.audio_quality_service import AudioQualityService
@@ -30,8 +31,9 @@ UPLOAD_DIR_CLEAN = "uploads/clean"
 os.makedirs(UPLOAD_DIR_NOISY, exist_ok=True)
 os.makedirs(UPLOAD_DIR_CLEAN, exist_ok=True)
 
-# Initialize the suppression service
+# Initialize services
 suppression_service = NoiseSuppressionService()
+onnx_service = ONNXSuppressionService()
 
 @router.get("/alerts", response_model=List[Alert])
 def get_alerts():
@@ -39,7 +41,7 @@ def get_alerts():
     return session.current_alerts
 
 @router.post("/audio/upload", response_model=AudioUploadResponse)
-def upload_audio(file: UploadFile = File(...)):
+def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
     try:
         # 1. Save uploaded file to noisy uploads folder locally
         file_bytes = file.file.read()
@@ -65,12 +67,21 @@ def upload_audio(file: UploadFile = File(...)):
         # 2. Define path for clean audio
         clean_file_path = os.path.join(UPLOAD_DIR_CLEAN, file.filename)
         
-        # 3. Apply noise suppression
-        suppression_result = suppression_service.process_audio(noisy_file_path, clean_file_path)
-        if not suppression_result.get("success"):
-            raise HTTPException(status_code=500, detail=f"Suppression model failed: {suppression_result.get('error')}")
+        # 3. Apply noise suppression based on selected model
+        if model == "noisereduce":
+            suppression_result = suppression_service.process_audio(noisy_file_path, clean_file_path)
+            if not suppression_result.get("success"):
+                raise HTTPException(status_code=500, detail=f"Suppression model failed: {suppression_result.get('error')}")
+        else:
+            # Use ONNX model for full file processing
+            import librosa, soundfile as sf
+            y_noisy, _ = librosa.load(noisy_file_path, sr=16000, mono=True)
+            processed = onnx_service.process_chunk(y_noisy.astype(np.float32), model)
+            # Write processed audio to clean path
+            sf.write(clean_file_path, processed, 16000)
+            # For consistency, set a placeholder success dict
+            suppression_result = {"success": True}
 
-        # Compute STOI estimate using standard librosa loading
         import librosa
         try:
             y_noisy, _ = librosa.load(noisy_file_path, sr=16000, mono=True)
@@ -80,8 +91,8 @@ def upload_audio(file: UploadFile = File(...)):
             print(f"Failed to calculate STOI estimate: {stoi_err}")
             stoi_score = 0.85
 
-        # 4. Classify noise type using our dedicated classifier
-        noise_type = NoiseClassificationService.classify_noise(noisy_file_path)
+        # 4. Classify noise type using our dedicated classifier (returns dominant + full breakdown)
+        noise_type, noise_breakdown = NoiseClassificationService.classify_noise_with_scores(noisy_file_path)
 
         # 5. Analyze audio quality metrics using our quality service
         quality_metrics = AudioQualityService.analyze_quality(noisy_file_path)
@@ -123,7 +134,8 @@ def upload_audio(file: UploadFile = File(...)):
             "speech_presence": quality_metrics["speech_presence"],
             "audio_quality": quality_metrics["audio_quality"],
             "clean_audio_url": clean_audio_url,
-            "stoi_score": stoi_score
+            "stoi_score": stoi_score,
+            "noise_breakdown": noise_breakdown
         }
 
     except Exception as e:
@@ -143,7 +155,7 @@ def get_audio_files():
         raise HTTPException(status_code=500, detail=f"Failed to fetch Cloudinary files: {str(e)}")
 
 @router.websocket("/audio/stream")
-async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool = False):
+async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool = False, model: str = "noisereduce"):
     await websocket.accept()
     print(f"WebSocket connection established for real-time audio stream. Suppression: {suppress}")
     
@@ -152,12 +164,13 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
     
     # Buffers to calculate live metrics (3 seconds sliding window)
     rolling_buffer = []
+    clean_rolling_buffer = []
     full_session_buffer = [] # Accumulate all audio to save at the end
     samples_count = 0
     
-    # State to rate-limit alerts and notifications
-    last_alert_time = 0
-    last_detected_noise = "Other"
+    # State to rate-limit alerts and notifications using list references for thread safety
+    last_alert_time = [0.0]
+    last_detected_noise = ["Other"]
     
     try:
         while True:
@@ -193,64 +206,94 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
                     full_session_buffer.append(audio_chunk)
                     
                     if suppress:
-                        # 1. Apply fast stationary noise reduction using noisereduce
-                        cleaned_chunk = nr.reduce_noise(
-                            y=audio_chunk,
-                            sr=16000,
-                            stationary=True,
-                            prop_decrease=0.85
-                        )
+                        if model == "noisereduce":
+                            # Fast stationary noise reduction using noisereduce
+                            cleaned_chunk = nr.reduce_noise(
+                                y=audio_chunk,
+                                sr=16000,
+                                stationary=True,
+                                prop_decrease=0.85
+                            )
+                        else:
+                            # ONNX model inference
+                            cleaned_chunk = onnx_service.process_chunk(audio_chunk.astype(np.float32), model)
                     else:
                         cleaned_chunk = audio_chunk
                     
+                    # 1. Convert back to raw bytes and send cleaned audio immediately to frontend
+                    cleaned_bytes = cleaned_chunk.astype(np.float32).tobytes()
+                    await websocket.send_bytes(cleaned_bytes)
+                    
                     # 2. Accumulate in the sliding buffer for stream analysis
                     rolling_buffer.append(audio_chunk)
+                    clean_rolling_buffer.append(cleaned_chunk)
                     samples_count += len(audio_chunk)
                     
-                    # 3 seconds window at 16kHz = 48,000 samples
+                    # 3. 3 seconds window at 16kHz = 48,000 samples
                     if samples_count >= 48000:
                         # Concatenate all accumulated chunks
                         full_signal = np.concatenate(rolling_buffer)
+                        full_clean_signal = np.concatenate(clean_rolling_buffer)
+                        
                         # Keep only the last 3 seconds
                         analysis_signal = full_signal[-48000:]
+                        analysis_clean_signal = full_clean_signal[-48000:]
                         
-                        try:
-                            # Analyze noise type and quality in-memory (no disk IO!)
-                            noise_type = NoiseClassificationService.classify_noise(y=analysis_signal, sr=16000)
-                            quality_metrics = AudioQualityService.analyze_quality(y=analysis_signal, sr=16000)
-                            
-                            # Calculate real-time STOI score if suppression is ON
-                            if suppress:
-                                clean_analysis = nr.reduce_noise(y=analysis_signal, sr=16000, stationary=True, prop_decrease=0.85)
-                                stoi_score = AudioQualityService.calculate_stoi_estimate(clean_analysis, analysis_signal)
-                            else:
-                                stoi_score = 1.0
-                            
-                            # Update session metrics in real time
-                            session.update_metrics(
-                                noise_score=quality_metrics["noise_level"],
-                                voice_clarity=quality_metrics["voice_clarity"],
-                                audio_quality=quality_metrics["audio_quality"],
-                                stoi_score=stoi_score
-                            )
-                            
-                            # Log alert if specific noise detected (prevent spamming: rate-limit to once per 10s)
-                            current_time = time.time()
-                            if noise_type != "Other" and (noise_type != last_detected_noise or (current_time - last_alert_time) > 10):
-                                session.add_alert(f"Live Mic: Detected '{noise_type}' background noise.")
-                                last_alert_time = current_time
-                                last_detected_noise = noise_type
+                        # Run the analysis in a background thread to prevent blocking the event loop
+                        import asyncio
+                        
+                        def perform_analysis(noisy_sig, clean_sig):
+                            try:
+                                noise_type = NoiseClassificationService.classify_noise(y=noisy_sig, sr=16000)
+                                quality_metrics = AudioQualityService.analyze_quality(y=noisy_sig, sr=16000)
                                 
-                        except Exception as analysis_err:
-                            print(f"Error in stream analysis: {str(analysis_err)}")
+                                if suppress:
+                                    stoi_score = AudioQualityService.calculate_stoi_estimate(clean_sig, noisy_sig)
+                                else:
+                                    stoi_score = 1.0
+                                
+                                # Update session metrics
+                                session.update_metrics(
+                                    noise_score=quality_metrics["noise_level"],
+                                    voice_clarity=quality_metrics["voice_clarity"],
+                                    audio_quality=quality_metrics["audio_quality"],
+                                    stoi_score=stoi_score
+                                )
+                                
+                                # Log alert if specific noise detected (prevent spamming: rate-limit to once per 10s)
+                                current_time = time.time()
+                                if noise_type != "Other" and (noise_type != last_detected_noise[0] or (current_time - last_alert_time[0]) > 10):
+                                    session.add_alert(f"Live Mic: Detected '{noise_type}' background noise.")
+                                    last_alert_time[0] = current_time
+                                    last_detected_noise[0] = noise_type
+                            except Exception as analysis_err:
+                                print(f"Error in background stream analysis: {str(analysis_err)}")
+                        
+                        # Schedule in thread pool and send metrics back to frontend
+                        async def run_analysis_and_push(noisy_sig, clean_sig):
+                            await asyncio.to_thread(perform_analysis, noisy_sig, clean_sig)
+                            # Push live metrics back to frontend as a JSON text frame
+                            try:
+                                if websocket.client_state.name == "CONNECTED":
+                                    import json
+                                    metrics_payload = json.dumps({
+                                        "type": "metrics",
+                                        "noise_score": session.current_metrics.get("noise_score", 0),
+                                        "voice_clarity": session.current_metrics.get("voice_clarity", 100),
+                                        "audio_quality": session.current_metrics.get("audio_quality", 100),
+                                        "stoi_score": session.current_metrics.get("stoi_score", 1.0),
+                                        "latency": session.current_metrics.get("latency", 0),
+                                    })
+                                    await websocket.send_text(metrics_payload)
+                            except Exception as push_err:
+                                print(f"Failed to push metrics to frontend: {push_err}")
+
+                        asyncio.create_task(run_analysis_and_push(analysis_signal, analysis_clean_signal))
                         
                         # Reset buffer to keep sliding window context
                         rolling_buffer = [analysis_signal]
+                        clean_rolling_buffer = [analysis_clean_signal]
                         samples_count = len(analysis_signal)
-                    
-                    # 3. Convert back to raw bytes and send cleaned audio
-                    cleaned_bytes = cleaned_chunk.astype(np.float32).tobytes()
-                    await websocket.send_bytes(cleaned_bytes)
     except WebSocketDisconnect:
         print("WebSocket client disconnected")
         # Save session to Cloudinary only if explicitly requested and credentials are configured
@@ -277,12 +320,10 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
         print(f"Error in WebSocket audio stream: {str(e)}")
         
     finally:
-        # Reset microphone status and metrics on disconnect/error
+        # Reset microphone status only — preserve last real metric values so the
+        # dashboard continues to show the final session readings after disconnect.
         session.current_metrics["microphone_status"] = "connected"
-        session.current_metrics["noise_score"] = 0
-        session.current_metrics["voice_clarity"] = 100
-        session.current_metrics["audio_quality"] = 100
-        print("WebSocket stream finished: Reset microphone status and metrics to defaults.")
+        print("WebSocket stream finished: Microphone status reset. Last session metrics preserved.")
 
 @router.delete("/audio/files")
 def delete_audio(public_id: str):

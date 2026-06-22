@@ -10,3 +10,4 @@ noisereduce
 cloudinary
 python-dotenv
 websockets
+onnxruntime

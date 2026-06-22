@@ -17,6 +17,7 @@ const Dashboard = () => {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploadCount, setUploadCount] = useState(0);
+  const [selectedModel, setSelectedModel] = useState('noisereduce');
 
   const fetchData = async () => {
     try {
@@ -68,6 +69,20 @@ const Dashboard = () => {
     setUploadCount(prev => prev + 1);
   };
 
+  // Called by AudioWaveformCard whenever the backend pushes a live metrics frame
+  // over the WebSocket — gives us instant KPI updates without waiting for the 2s poll
+  const handleLiveMetrics = (liveData) => {
+    setMetrics(prev => ({
+      ...prev,
+      noise_score: liveData.noise_score ?? prev?.noise_score,
+      voice_clarity: liveData.voice_clarity ?? prev?.voice_clarity,
+      audio_quality: liveData.audio_quality ?? prev?.audio_quality,
+      stoi_score: liveData.stoi_score ?? prev?.stoi_score,
+      // Prefer the RTT latency measured by the WS client when available
+      latency: liveData.latency ?? prev?.latency,
+    }));
+  };
+
   if (loading && !metrics) {
     return (
       <div className="relative min-h-screen w-screen overflow-hidden flex flex-col items-center justify-center bg-[#070913] text-slate-400 gap-4">
@@ -106,7 +121,11 @@ const Dashboard = () => {
               <AudioUploadCard onUploadSuccess={handleUploadSuccess} />
             </div>
             <div className="min-h-fit">
-              <AudioWaveformCard onUploadSuccess={handleUploadSuccess} />
+              <AudioWaveformCard
+                onUploadSuccess={handleUploadSuccess}
+                onLiveMetrics={handleLiveMetrics}
+                selectedModel={selectedModel}
+              />
             </div>
           </div>
           <div className="md:col-span-1 h-full flex flex-col">
@@ -116,7 +135,10 @@ const Dashboard = () => {
         
         {/* Model Benchmarks Card */}
         <div className="shrink-0">
-          <ModelBenchmarksCard />
+          <ModelBenchmarksCard
+            selectedModel={selectedModel}
+            onModelSelect={setSelectedModel}
+          />
         </div>
         
         {/* Cloudinary Gallery */}

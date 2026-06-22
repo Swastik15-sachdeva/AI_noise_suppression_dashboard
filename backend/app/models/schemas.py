@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import Dict, List, Optional
 
 class HealthResponse(BaseModel):
     status: str
@@ -26,3 +26,4 @@ class AudioUploadResponse(BaseModel):
     audio_quality: int
     clean_audio_url: str
     stoi_score: float
+    noise_breakdown: Optional[Dict[str, float]] = None

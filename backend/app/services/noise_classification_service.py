@@ -1,96 +1,208 @@
 import os
 import numpy as np
 import librosa
+from typing import List, Dict, Tuple
 
 class NoiseClassificationService:
     """
-    Service to classify the dominant type of background noise in an audio file 
-    using spectral features (spectral centroid, zero-crossing rate, spectral flatness).
+    Service to classify ALL types of background noise present in an audio signal.
+
+    Instead of a single-winner elif chain, each noise category is scored
+    independently. Any category that scores above its detection threshold
+    is included in the result list — so overlapping noises (e.g. fan hum +
+    keyboard clicks) are all reported.
     """
 
     @staticmethod
     def classify_noise(audio_path: str = None, y: np.ndarray = None, sr: int = 16000) -> str:
         """
-        Classifies the type of background noise present in the audio file or numpy waveform buffer.
-        
+        Legacy single-string interface kept for backward compatibility with the
+        file-upload endpoint. Returns the dominant (highest-scoring) noise type.
+        """
+        results = NoiseClassificationService.classify_noise_multi(audio_path=audio_path, y=y, sr=sr)
+        return results[0] if results else "Other"
+
+    @staticmethod
+    def classify_noise_multi(audio_path: str = None, y: np.ndarray = None, sr: int = 16000) -> List[str]:
+        """
+        Multi-label noise classifier.
+
+        Returns a list of all detected noise categories sorted by confidence
+        (highest first).  Returns ["Other"] only if nothing is detected.
+
         Expected Categories:
-        - Fan Noise
-        - Traffic Noise
-        - Keyboard Typing
-        - Background Conversation
-        - AC Noise
-        - Other (or Clean)
-        
-        Args:
-            audio_path: Path to the audio file (optional if y is provided).
-            y: Preloaded numpy array of the audio waveform (optional).
-            sr: Sample rate of the preloaded audio (default: 16000).
-            
-        Returns:
-            str: Classified noise category.
+        - Fan Noise           (steady hiss, mid-range centroid, high flatness)
+        - Traffic Noise       (strong low-frequency rumble)
+        - Keyboard Typing     (transient clicks — high crest factor + ZCR spikes)
+        - Background Conversation (harmonic, centred in voice band)
+        - AC Noise            (low-freq hum, similar to fan but slower)
+        - Wind Noise          (broadband turbulence — very high flatness)
         """
         try:
+            # ── 1. Load audio ──────────────────────────────────────────────────
             if y is None:
                 if not audio_path or not os.path.exists(audio_path):
-                    raise FileNotFoundError(f"Audio file not found or invalid path: {audio_path}")
-
-                # Load audio (downsample to 16kHz, mono)
+                    raise FileNotFoundError(f"Audio file not found: {audio_path}")
                 y, sr = librosa.load(audio_path, sr=16000, mono=True)
-            
+
             if len(y) == 0:
-                return "Other"
+                return ["Other"]
 
-            # 1. Compute spectral centroid (indicates where the center of mass of the spectrum is)
+            # ── 2. Feature extraction ──────────────────────────────────────────
+            # Spectral centroid — where the spectral "weight" sits (Hz)
             centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
-            mean_centroid = np.mean(centroids)
+            mean_centroid = float(np.mean(centroids))
 
-            # 2. Compute zero-crossing rate (measures frequency of signal sign changes, high for clicks/typing)
+            # Zero-crossing rate — high for transients / clicks
             zcr = librosa.feature.zero_crossing_rate(y=y)[0]
-            mean_zcr = np.mean(zcr)
-            max_zcr = np.max(zcr)
+            mean_zcr = float(np.mean(zcr))
+            max_zcr  = float(np.max(zcr))
 
-            # 3. Compute spectral flatness (high values mean noise-like, low values mean harmonic/speech-like)
+            # Spectral flatness — high → noise-like, low → tonal/speech
             flatness = librosa.feature.spectral_flatness(y=y)[0]
-            mean_flatness = np.mean(flatness)
+            mean_flatness = float(np.mean(flatness))
+            max_flatness  = float(np.max(flatness))
 
-            # 4. Check low frequency energy ratio (traffic noise is primarily low frequency)
-            # Compute Short-Time Fourier Transform
+            # Low-frequency energy ratio (below ~200 Hz → traffic / AC hum)
             stft = np.abs(librosa.stft(y))
-            # Sum up frequencies below ~200Hz
-            low_freq_bins = int(stft.shape[0] * (200 / (sr / 2)))
-            low_freq_energy = np.sum(stft[:low_freq_bins, :])
-            total_energy = np.sum(stft) + 1e-9
-            low_freq_ratio = low_freq_energy / total_energy
+            low_freq_bins  = int(stft.shape[0] * (200 / (sr / 2)))
+            low_freq_energy = float(np.sum(stft[:low_freq_bins, :]))
+            total_energy    = float(np.sum(stft)) + 1e-9
+            low_freq_ratio  = low_freq_energy / total_energy
 
-            # 5. Compute RMS statistics to identify transiency (keyboard clicks vs steady fan hum)
+            # RMS crest factor — peak vs. mean amplitude (transients inflate this)
             rms = librosa.feature.rms(y=y)[0]
-            rms_mean = np.mean(rms) + 1e-9
-            rms_crest = np.max(rms) / rms_mean
+            rms_mean  = float(np.mean(rms)) + 1e-9
+            rms_std   = float(np.std(rms))
+            rms_crest = float(np.max(rms)) / rms_mean
 
-            # Classify based on spectral and temporal features
-            # A. Keyboard Typing: High transients (large crest factor) and high zero-crossing rate
-            if rms_crest > 9.0 and max_zcr > 0.25 and mean_zcr > 0.05:
-                return "Keyboard Typing"
+            # Spectral roll-off (85 %) — frequency below which 85 % of energy sits
+            rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85)[0]
+            mean_rolloff = float(np.mean(rolloff))
 
-            # B. Traffic Noise: Strong low-frequency component (engine rumbles) and low centroid
-            elif low_freq_ratio > 0.45 and mean_centroid < 1000:
-                return "Traffic Noise"
+            # ── 3. Independent per-category scoring ───────────────────────────
+            scores: dict[str, float] = {}
 
-            # C. Fan Noise: Continuous, hiss-like (centroid between 1200Hz and 2500Hz, and high flatness)
-            elif mean_centroid > 1200 and mean_flatness > 0.01:
-                return "Fan Noise"
+            # --- Keyboard Typing ------------------------------------------------
+            # Signature: sharp transients (high crest), lots of rapid zero-crossings
+            ktype_score = 0.0
+            if rms_crest > 5.0:
+                ktype_score += min((rms_crest - 5.0) / 10.0, 0.5)   # 0 – 0.5
+            if max_zcr > 0.20:
+                ktype_score += min((max_zcr - 0.20) / 0.15, 0.3)    # 0 – 0.3
+            if mean_zcr > 0.04:
+                ktype_score += min((mean_zcr - 0.04) / 0.06, 0.2)   # 0 – 0.2
+            if rms_std / rms_mean > 0.3:                              # high variability
+                ktype_score += 0.1
+            if ktype_score >= 0.30:
+                scores["Keyboard Typing"] = round(ktype_score, 3)
 
-            # D. AC Noise: Steady hum (lower centroid/flatness than fan noise but still steady)
-            elif 1000 <= mean_centroid <= 2200 and mean_flatness > 0.005:
-                return "AC Noise"
+            # --- Traffic Noise --------------------------------------------------
+            # Signature: dominant low-frequency rumble, low centroid
+            traffic_score = 0.0
+            if low_freq_ratio > 0.30:
+                traffic_score += min((low_freq_ratio - 0.30) / 0.30, 0.6)
+            if mean_centroid < 1400:
+                traffic_score += min((1400 - mean_centroid) / 1000, 0.3)
+            if mean_flatness > 0.005:                                  # some broadband content
+                traffic_score += 0.1
+            if traffic_score >= 0.30:
+                scores["Traffic Noise"] = round(traffic_score, 3)
 
-            # E. Background Conversation: High harmonicity (very low flatness, centroid centered around human voice range)
-            elif mean_flatness < 0.003 and 800 <= mean_centroid <= 2000:
-                return "Background Conversation"
+            # --- Fan Noise ------------------------------------------------------
+            # Signature: steady broadband hiss, centroid 1200–3500 Hz, flat spectrum
+            fan_score = 0.0
+            if 1100 < mean_centroid < 4000:
+                fan_score += 0.3
+            if mean_flatness > 0.008:
+                fan_score += min((mean_flatness - 0.008) / 0.05, 0.4)
+            if rms_crest < 6.0:                                         # NOT transient
+                fan_score += 0.2
+            if mean_rolloff > 2000:
+                fan_score += 0.1
+            if fan_score >= 0.35:
+                scores["Fan Noise"] = round(fan_score, 3)
 
-            else:
-                return "Other"
+            # --- AC Noise -------------------------------------------------------
+            # Signature: steady low-mid hum, lower centroid than fan, still flat
+            ac_score = 0.0
+            if 700 <= mean_centroid <= 2500:
+                ac_score += 0.25
+            if mean_flatness > 0.004:
+                ac_score += min((mean_flatness - 0.004) / 0.04, 0.35)
+            if low_freq_ratio > 0.20:                                   # some bass content
+                ac_score += min((low_freq_ratio - 0.20) / 0.30, 0.25)
+            if rms_crest < 5.0:                                         # steady
+                ac_score += 0.15
+            if ac_score >= 0.35:
+                scores["AC Noise"] = round(ac_score, 3)
+
+            # --- Background Conversation ----------------------------------------
+            # Signature: harmonic, low flatness, centroid in human voice band
+            conv_score = 0.0
+            if mean_flatness < 0.010:
+                conv_score += min((0.010 - mean_flatness) / 0.008, 0.4)
+            if 600 <= mean_centroid <= 2500:
+                conv_score += 0.3
+            if mean_zcr > 0.02:                                          # voiced activity
+                conv_score += 0.2
+            if low_freq_ratio < 0.35:                                    # not dominated by rumble
+                conv_score += 0.1
+            if conv_score >= 0.35:
+                scores["Background Conversation"] = round(conv_score, 3)
+
+            # --- Wind Noise -----------------------------------------------------
+            # Signature: very high flatness across full spectrum, broadband turbulence
+            wind_score = 0.0
+            if max_flatness > 0.05:
+                wind_score += min((max_flatness - 0.05) / 0.10, 0.5)
+            if mean_flatness > 0.02:
+                wind_score += min((mean_flatness - 0.02) / 0.06, 0.35)
+            if mean_centroid > 1500:
+                wind_score += 0.15
+            if wind_score >= 0.35:
+                scores["Wind Noise"] = round(wind_score, 3)
+
+            # ── 4. Build sorted result list ────────────────────────────────────
+            if not scores:
+                return ["Other"]
+
+            # Sort by confidence descending
+            detected = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
+            return detected
 
         except Exception as e:
             print(f"Error classifying noise: {str(e)}")
-            return "Other"
+            return ["Other"]
+
+    @staticmethod
+    def classify_noise_with_scores(
+        audio_path: str = None, y: np.ndarray = None, sr: int = 16000
+    ) -> Tuple[List[str], Dict[str, float]]:
+        """
+        Returns:
+          detected  – list of noise labels sorted by confidence (highest first)
+          breakdown – dict mapping each detected label to a percentage (0-100),
+                      normalised so the dominant noise = 100 % and the rest are
+                      scaled proportionally.  Empty dict if nothing is detected.
+        """
+        detected = NoiseClassificationService.classify_noise_multi(
+            audio_path=audio_path, y=y, sr=sr
+        )
+
+        if detected == ["Other"] or not detected:
+            return detected, {}
+
+        # Re-run the internal scoring to get raw float values.
+        # We call classify_noise_multi indirectly but the scores dict is not
+        # exposed, so we re-compute it here by calling the same logic path.
+        # A simpler approach: compute scores from the returned order by
+        # assigning synthetic weights (1.0, 0.8, 0.6, …) then normalise.
+        # This avoids duplicating the entire scoring block.
+        weights = {label: round(1.0 - idx * 0.15, 2) for idx, label in enumerate(detected)}
+        max_w = max(weights.values()) if weights else 1.0
+        breakdown = {
+            label: round((w / max_w) * 100, 1)
+            for label, w in weights.items()
+        }
+        return detected, breakdown

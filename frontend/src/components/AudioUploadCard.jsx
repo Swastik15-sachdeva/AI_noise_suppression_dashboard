@@ -36,7 +36,8 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                     noiseScore: data.noise_score,
                     audioQuality: data.audio_quality,
                     cleanAudioUrl: cleanUrl,
-                    originalAudioUrl: URL.createObjectURL(file)
+                    originalAudioUrl: URL.createObjectURL(file),
+                    noiseBreakdown: data.noise_breakdown || {}
                 });
 
                 // Notify parent dashboard to update general metrics & alerts list
@@ -200,6 +201,7 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
             {/* Audio Players & Results */}
             {results && (
                 <div className="mt-5 border-t border-[#141635] pt-4 flex-1 flex flex-col justify-end">
+                    {/* Dominant noise badge */}
                     <div className="mb-4 flex items-center justify-between">
                         <div>
                             <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">AI Classification</span>
@@ -209,6 +211,54 @@ const AudioUploadCard = ({ onUploadSuccess }) => {
                             {renderNoiseBadge(results.noiseType)}
                         </div>
                     </div>
+
+                    {/* Noise Composition Breakdown */}
+                    {results.noiseBreakdown && Object.keys(results.noiseBreakdown).length > 0 && (
+                        <div className="mb-4 p-3.5 rounded-xl border border-[#141635] bg-[#040510]/60">
+                            <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-3">
+                                Noise Composition Breakdown
+                            </div>
+                            <div className="space-y-2.5">
+                                {Object.entries(results.noiseBreakdown)
+                                    .sort(([, a], [, b]) => b - a)
+                                    .map(([label, pct]) => {
+                                        const lower = label.toLowerCase();
+                                        let barColor = '#6366f1';       // indigo default
+                                        let textColor = 'text-indigo-400';
+                                        if (lower.includes('traffic')) {
+                                            barColor = '#ec4899'; textColor = 'text-pink-400';
+                                        } else if (lower.includes('conversation') || lower.includes('speech') || lower.includes('crowd')) {
+                                            barColor = '#a855f7'; textColor = 'text-purple-400';
+                                        } else if (lower.includes('wind')) {
+                                            barColor = '#06b6d4'; textColor = 'text-cyan-400';
+                                        } else if (lower.includes('fan') || lower.includes('ac') || lower.includes('conditioner')) {
+                                            barColor = '#22d3ee'; textColor = 'text-cyan-300';
+                                        } else if (lower.includes('keyboard') || lower.includes('click') || lower.includes('typing')) {
+                                            barColor = '#f59e0b'; textColor = 'text-amber-400';
+                                        }
+                                        return (
+                                            <div key={label}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className={`text-[10px] font-semibold ${textColor}`}>{label}</span>
+                                                    <span className={`text-[10px] font-black ${textColor}`}>{pct}%</span>
+                                                </div>
+                                                <div className="h-1.5 w-full rounded-full bg-[#141635] overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full transition-all duration-700 ease-out"
+                                                        style={{
+                                                            width: `${pct}%`,
+                                                            background: `linear-gradient(90deg, ${barColor}99, ${barColor})`,
+                                                            boxShadow: `0 0 6px ${barColor}66`
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                }
+                            </div>
+                        </div>
+                    )}
 
                     <div className="space-y-3.5">
                         <div className="bg-[#040510]/60 p-2.5 rounded-xl border border-[#141635]">

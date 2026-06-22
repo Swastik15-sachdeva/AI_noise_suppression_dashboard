@@ -73,7 +73,9 @@ def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
             if not suppression_result.get("success"):
                 raise HTTPException(status_code=500, detail=f"Suppression model failed: {suppression_result.get('error')}")
         else:
-            # Use ONNX model for full file processing
+            # Use ONNX model for full file processing.
+            # Reset states so each upload gets a clean LSTM/GRU context.
+            onnx_service.reset_states(model)
             import librosa, soundfile as sf
             y_noisy, _ = librosa.load(noisy_file_path, sr=16000, mono=True)
             processed = onnx_service.process_chunk(y_noisy.astype(np.float32), model)
@@ -157,8 +159,13 @@ def get_audio_files():
 @router.websocket("/audio/stream")
 async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool = False, model: str = "noisereduce"):
     await websocket.accept()
-    print(f"WebSocket connection established for real-time audio stream. Suppression: {suppress}")
-    
+    print(f"WebSocket connection established for real-time audio stream. Suppression: {suppress}, Model: {model}")
+
+    # Reset ONNX stateful buffers at the start of every new stream session
+    # so LSTM/GRU hidden states don't bleed across disconnects/reconnects.
+    if model not in ("noisereduce",):
+        onnx_service.reset_states(model)
+
     # Update microphone status in session to streaming
     session.current_metrics["microphone_status"] = "streaming"
     
@@ -323,6 +330,9 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
         # Reset microphone status only — preserve last real metric values so the
         # dashboard continues to show the final session readings after disconnect.
         session.current_metrics["microphone_status"] = "connected"
+        # Clear ONNX states so the next stream starts fresh.
+        if model not in ("noisereduce",):
+            onnx_service.reset_states(model)
         print("WebSocket stream finished: Microphone status reset. Last session metrics preserved.")
 
 @router.delete("/audio/files")

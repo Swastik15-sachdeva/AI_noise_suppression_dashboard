@@ -20,10 +20,13 @@ export const metricsService = {
 
 export const audioService = {
   getAlerts: () => apiClient.get('/alerts'),
-  uploadAudio: (file, model) => {
+  uploadAudio: (file, model, voiceBoost) => {
     const formData = new FormData();
     formData.append('file', file);
-    const url = model ? `/audio/upload?model=${model}` : '/audio/upload';
+    let url = `/audio/upload?model=${model || 'noisereduce'}`;
+    if (voiceBoost !== undefined) {
+      url += `&voice_boost=${voiceBoost}`;
+    }
     return apiClient.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

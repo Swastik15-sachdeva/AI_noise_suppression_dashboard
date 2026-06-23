@@ -4,12 +4,46 @@ import librosa
 import soundfile as sf
 import noisereduce as nr
 from typing import Dict, Any
+from scipy.signal import butter, lfilter
 
 class NoiseSuppressionService:
     """
     Service to perform background noise suppression using noisereduce.
     """
     
+    @staticmethod
+    def apply_voice_boost(y: np.ndarray, sr: int = 16000) -> np.ndarray:
+        """
+        Applies a voice clarity boost to a clean signal by:
+        1. High-pass filtering above 80Hz (removes low-end rumble/plosives).
+        2. Equalizing / boosting presence frequencies (1kHz - 3.5kHz) where speech clarity lives.
+        3. Peak-normalizing to ensure maximum loudness without clipping.
+        """
+        try:
+            nyq = 0.5 * sr
+            # 1. High-pass filter at 80Hz to clean up sub-bass
+            b_hp, a_hp = butter(2, 80.0 / nyq, btype='high')
+            y_hp = lfilter(b_hp, a_hp, y)
+            
+            # 2. Band-pass filter to extract presence band (1000Hz - 3500Hz)
+            low_cut = 1000.0 / nyq
+            high_cut = 3500.0 / nyq
+            b_bp, a_bp = butter(2, [low_cut, high_cut], btype='band')
+            y_presence = lfilter(b_bp, a_bp, y_hp)
+            
+            # 3. Mix presence back with high-passed audio to boost voice
+            y_boosted = y_hp + 0.6 * y_presence
+            
+            # 4. Normalize to -1 dB (0.89) to prevent clipping
+            peak = np.max(np.abs(y_boosted))
+            if peak > 1e-5:
+                y_boosted = (y_boosted / peak) * 0.89
+                
+            return y_boosted.astype(np.float32)
+        except Exception as e:
+            print(f"Failed to apply voice boost: {e}")
+            return y
+
     def __init__(self):
         """
         Initializes the noise suppression service.

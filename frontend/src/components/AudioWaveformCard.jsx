@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { audioService } from '../services/api';
+import CustomAudioPlayer from './CustomAudioPlayer';
 
 const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'noisereduce' }) => {
   const [isListening, setIsListening] = useState(false);
@@ -16,6 +17,12 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
   const [afterAudioUrl, setAfterAudioUrl] = useState(null);
   const [noiseClassification, setNoiseClassification] = useState(null);
   const [uploadError, setUploadError] = useState(null);
+
+  // New States
+  const [voiceBoostEnabled, setVoiceBoostEnabled] = useState(true);
+  const [liveNoiseBreakdown, setLiveNoiseBreakdown] = useState(null);
+  const [liveNoiseType, setLiveNoiseType] = useState(null);
+  const [recordingNoiseBreakdown, setRecordingNoiseBreakdown] = useState(null);
 
   const canvasRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -84,15 +91,16 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
   };
 
   // Get WebSocket URL dynamically based on API_BASE_URL config
-  const getWebSocketUrl = (shouldSuppress, model) => {
+  const getWebSocketUrl = (shouldSuppress, model, voiceBoost) => {
     const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const wsBase = apiBase.replace(/^http/, 'ws');
+    const vbVal = voiceBoost !== undefined ? voiceBoost : voiceBoostEnabled;
     // Always include the model param so DTLN/RNNoise are actually selected
-    return `${wsBase}/audio/stream?suppress=${shouldSuppress}&model=${model || selectedModel}`;
+    return `${wsBase}/audio/stream?suppress=${shouldSuppress}&model=${model || selectedModel}&voice_boost=${vbVal}`;
   };
 
   // Helper to connect/reconnect WebSocket
-  const connectWebSocket = (shouldSuppress, model) => {
+  const connectWebSocket = (shouldSuppress, model, voiceBoost) => {
     return new Promise((resolve, reject) => {
       // Close any existing WebSocket first
       if (socketRef.current) {
@@ -111,7 +119,7 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
       lastSendTimeRef.current = null;
       rttSamplesRef.current = [];
 
-      const wsUrl = getWebSocketUrl(shouldSuppress, model);
+      const wsUrl = getWebSocketUrl(shouldSuppress, model, voiceBoost);
       console.log(`Connecting to WebSocket: ${wsUrl}`);
       const ws = new WebSocket(wsUrl);
       ws.binaryType = 'arraybuffer';
@@ -136,6 +144,8 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
                 stoi_score: payload.stoi_score,
                 latency: payload.latency,
               });
+              setLiveNoiseBreakdown(payload.noise_breakdown || null);
+              setLiveNoiseType(payload.noise_type || null);
             }
           } catch (parseErr) {
             console.warn('Failed to parse WS text frame:', parseErr);
@@ -198,7 +208,7 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
   };
 
   // Helper to initialize audio context, stream, script processor, and routing
-  const initAudioAndWebSocket = async (shouldSuppress) => {
+  const initAudioAndWebSocket = async (shouldSuppress, voiceBoost) => {
     // 1. Get or create AudioContext at 16000Hz (auto-resampled)
     let audioCtx = audioContextRef.current;
     if (!audioCtx || audioCtx.state === 'closed') {
@@ -270,14 +280,14 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
     }
 
     // 7. Establish WebSocket connection (pass model so backend selects the right suppressor)
-    await connectWebSocket(shouldSuppress, selectedModel);
+    await connectWebSocket(shouldSuppress, selectedModel, voiceBoost);
   };
 
   // Start live monitoring or real-time streaming
   const startLiveMonitor = async (shouldSuppress = false) => {
     try {
       setUploadError(null);
-      await initAudioAndWebSocket(shouldSuppress);
+      await initAudioAndWebSocket(shouldSuppress, voiceBoostEnabled);
       setIsListening(true);
       setIsSuppressing(shouldSuppress);
       drawWaveform();
@@ -307,7 +317,7 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
 
     // Swaps WebSocket connection with new suppression flag (preserve current model)
     try {
-      await connectWebSocket(enable, selectedModel);
+      await connectWebSocket(enable, selectedModel, voiceBoostEnabled);
     } catch (err) {
       console.error('Error toggling suppression live state:', err);
     }
@@ -323,9 +333,9 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
       if (isListening && audioContextRef.current && streamRef.current) {
         console.log('Reusing active audio context and microphone stream for recording');
         // WebSocket must match active suppression state and selected model
-        await connectWebSocket(isSuppressing, selectedModel);
+        await connectWebSocket(isSuppressing, selectedModel, voiceBoostEnabled);
       } else {
-        await initAudioAndWebSocket(isSuppressing);
+        await initAudioAndWebSocket(isSuppressing, voiceBoostEnabled);
         setIsListening(true);
         drawWaveform();
       }
@@ -382,8 +392,8 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
       const wavBlob = bufferToWav(flatBuffer, 16000);
       const audioFile = new File([wavBlob], `recording_${Date.now()}.wav`, { type: 'audio/wav' });
 
-      // 4. Send to backend
-      const response = await audioService.uploadAudio(audioFile, selectedModel);
+      // 4. Send to backend with voice boost state
+      const response = await audioService.uploadAudio(audioFile, selectedModel, voiceBoostEnabled);
       const data = response.data;
 
       if (data.status === 'success') {
@@ -392,6 +402,7 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
         const cleanUrl = data.clean_audio_url.startsWith('http') ? data.clean_audio_url : `${API_BASE_URL}${data.clean_audio_url}`;
         setAfterAudioUrl(cleanUrl);
         setNoiseClassification(data.noise_type);
+        setRecordingNoiseBreakdown(data.noise_breakdown || {});
         setRecordingState('success');
 
         // Update dashboard metrics
@@ -438,6 +449,8 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
     
     setIsListening(false);
     setIsSuppressing(false);
+    setLiveNoiseBreakdown(null);
+    setLiveNoiseType(null);
     clearCanvas();
   };
 
@@ -461,6 +474,7 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
     setBeforeAudioUrl(null);
     setAfterAudioUrl(null);
     setNoiseClassification(null);
+    setRecordingNoiseBreakdown(null);
     setRecordingState('idle');
     setUploadError(null);
   };
@@ -733,7 +747,78 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
               {isSuppressing ? 'Suppression: ON' : 'Suppression: OFF'}
             </button>
           )}
+
+          {/* Voice Boost Toggle Button */}
+          {(recordingState === 'idle' || recordingState === 'recording') && (
+            <button
+              onClick={() => {
+                const nextVal = !voiceBoostEnabled;
+                setVoiceBoostEnabled(nextVal);
+                if (isListening) {
+                  connectWebSocket(isSuppressing, selectedModel, nextVal).catch(err => console.error(err));
+                }
+              }}
+              className={`px-3 py-2.5 rounded-xl border text-xs font-black uppercase tracking-wider transition-all duration-300 active:scale-[0.97] cursor-pointer ${
+                voiceBoostEnabled
+                  ? 'bg-cyan-600 border-cyan-500 text-cyan-50 hover:bg-cyan-500 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                  : 'bg-[#040510] border-[#141635] text-slate-400 hover:border-slate-700 hover:bg-[#141635]/50'
+              }`}
+              title="Toggle Voice Boost presence filter"
+            >
+              {voiceBoostEnabled ? 'Voice Boost: ON' : 'Voice Boost: OFF'}
+            </button>
+          )}
         </div>
+
+        {/* Live Noise Composition Breakdown */}
+        {isListening && liveNoiseBreakdown && Object.keys(liveNoiseBreakdown).length > 0 && (
+          <div className="mt-4 p-3.5 rounded-xl border border-[#141635] bg-[#040510]/60 text-left">
+            <div className="flex items-center justify-between mb-3 shrink-0">
+              <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">
+                Live Noise Composition Breakdown
+              </span>
+              {liveNoiseType && renderNoiseBadge(liveNoiseType)}
+            </div>
+            <div className="space-y-2.5">
+              {Object.entries(liveNoiseBreakdown)
+                .sort(([, a], [, b]) => b - a)
+                .map(([label, pct]) => {
+                  const lower = label.toLowerCase();
+                  let barColor = '#6366f1';       // indigo default
+                  let textColor = 'text-indigo-400';
+                  if (lower.includes('traffic')) {
+                    barColor = '#ec4899'; textColor = 'text-pink-400';
+                  } else if (lower.includes('conversation') || lower.includes('speech') || lower.includes('crowd')) {
+                    barColor = '#a855f7'; textColor = 'text-purple-400';
+                  } else if (lower.includes('wind')) {
+                    barColor = '#06b6d4'; textColor = 'text-cyan-400';
+                  } else if (lower.includes('fan') || lower.includes('ac') || lower.includes('conditioner')) {
+                    barColor = '#22d3ee'; textColor = 'text-cyan-300';
+                  } else if (lower.includes('keyboard') || lower.includes('click') || lower.includes('typing')) {
+                    barColor = '#f59e0b'; textColor = 'text-amber-400';
+                  }
+                  return (
+                    <div key={label}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[10px] font-semibold ${textColor}`}>{label}</span>
+                        <span className={`text-[10px] font-black ${textColor}`}>{pct}%</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-[#141635] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700 ease-out"
+                          style={{
+                            width: `${pct}%`,
+                            background: `linear-gradient(90deg, ${barColor}99, ${barColor})`,
+                            boxShadow: `0 0 6px ${barColor}66`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
 
         {uploadError && (
           <div className="mt-3 p-3 bg-pink-500/10 text-pink-400 text-[11px] rounded-xl border border-pink-500/25 glow-box-pink">
@@ -744,7 +829,7 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
       
       {/* Side-by-Side Comparison Players (Available on Success) */}
       {recordingState === 'success' && (beforeAudioUrl || afterAudioUrl) && (
-        <div className="mt-4 border-t border-[#141635] pt-4 shrink-0">
+        <div className="mt-4 border-t border-[#141635] pt-4 shrink-0 text-left">
           <div className="flex items-center justify-between mb-3.5">
             <div className="flex items-center gap-3">
               <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">Processed Results</span>
@@ -757,20 +842,68 @@ const AudioWaveformCard = ({ onUploadSuccess, onLiveMetrics, selectedModel = 'no
               Clear
             </button>
           </div>
+
+          {/* Recording Noise Composition Breakdown */}
+          {recordingNoiseBreakdown && Object.keys(recordingNoiseBreakdown).length > 0 && (
+            <div className="mb-4 p-3.5 rounded-xl border border-[#141635] bg-[#040510]/60">
+              <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-3">
+                Recording Noise Composition Breakdown
+              </div>
+              <div className="space-y-2.5">
+                {Object.entries(recordingNoiseBreakdown)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([label, pct]) => {
+                    const lower = label.toLowerCase();
+                    let barColor = '#6366f1';       // indigo default
+                    let textColor = 'text-indigo-400';
+                    if (lower.includes('traffic')) {
+                      barColor = '#ec4899'; textColor = 'text-pink-400';
+                    } else if (lower.includes('conversation') || lower.includes('speech') || lower.includes('crowd')) {
+                      barColor = '#a855f7'; textColor = 'text-purple-400';
+                    } else if (lower.includes('wind')) {
+                      barColor = '#06b6d4'; textColor = 'text-cyan-400';
+                    } else if (lower.includes('fan') || lower.includes('ac') || lower.includes('conditioner')) {
+                      barColor = '#22d3ee'; textColor = 'text-cyan-300';
+                    } else if (lower.includes('keyboard') || lower.includes('click') || lower.includes('typing')) {
+                      barColor = '#f59e0b'; textColor = 'text-amber-400';
+                    }
+                    return (
+                      <div key={label}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[10px] font-semibold ${textColor}`}>{label}</span>
+                          <span className={`text-[10px] font-black ${textColor}`}>{pct}%</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-[#141635] overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-700 ease-out"
+                            style={{
+                              width: `${pct}%`,
+                              background: `linear-gradient(90deg, ${barColor}99, ${barColor})`,
+                              boxShadow: `0 0 6px ${barColor}66`
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+          )}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-3 bg-[#040510]/50 border border-[#141635] rounded-xl shadow-sm">
-              <span className="text-[9px] font-black text-pink-400 glow-text-pink uppercase tracking-widest block mb-1">Before (Original)</span>
+              <span className="text-[9px] font-black text-pink-400 glow-text-pink uppercase tracking-widest block mb-1.5">Before (Original)</span>
               {beforeAudioUrl ? (
-                <audio src={beforeAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
+                <CustomAudioPlayer src={beforeAudioUrl} theme="pink" />
               ) : (
                 <div className="h-7 flex items-center justify-center text-[10px] text-slate-500 italic">No audio</div>
               )}
             </div>
             <div className="p-3 bg-[#040510]/50 border border-cyan-950/30 rounded-xl shadow-sm">
-              <span className="text-[9px] font-black text-cyan-400 glow-text-cyan uppercase tracking-widest block mb-1">After (Suppressed Voice)</span>
+              <span className="text-[9px] font-black text-cyan-400 glow-text-cyan uppercase tracking-widest block mb-1.5">After (Suppressed Voice)</span>
               {afterAudioUrl ? (
-                <audio src={afterAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
+                <CustomAudioPlayer src={afterAudioUrl} theme="cyan" />
               ) : (
                 <div className="h-7 flex items-center justify-center text-[10px] text-slate-500 italic">No audio</div>
               )}

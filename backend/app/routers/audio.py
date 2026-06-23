@@ -41,7 +41,7 @@ def get_alerts():
     return session.current_alerts
 
 @router.post("/audio/upload", response_model=AudioUploadResponse)
-def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
+def upload_audio(file: UploadFile = File(...), model: str = "noisereduce", voice_boost: bool = False):
     try:
         # 1. Save uploaded file to noisy uploads folder locally
         file_bytes = file.file.read()
@@ -72,6 +72,15 @@ def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
             suppression_result = suppression_service.process_audio(noisy_file_path, clean_file_path)
             if not suppression_result.get("success"):
                 raise HTTPException(status_code=500, detail=f"Suppression model failed: {suppression_result.get('error')}")
+            
+            if voice_boost:
+                try:
+                    import librosa, soundfile as sf
+                    y_clean, sr = librosa.load(clean_file_path, sr=16000, mono=True)
+                    y_boosted = NoiseSuppressionService.apply_voice_boost(y_clean, sr)
+                    sf.write(clean_file_path, y_boosted, sr)
+                except Exception as vb_err:
+                    print(f"Failed to apply voice boost to noisereduce output: {vb_err}")
         else:
             # Use ONNX model for full file processing.
             # Reset states so each upload gets a clean LSTM/GRU context.
@@ -79,6 +88,10 @@ def upload_audio(file: UploadFile = File(...), model: str = "noisereduce"):
             import librosa, soundfile as sf
             y_noisy, _ = librosa.load(noisy_file_path, sr=16000, mono=True)
             processed = onnx_service.process_chunk(y_noisy.astype(np.float32), model)
+            
+            if voice_boost:
+                processed = NoiseSuppressionService.apply_voice_boost(processed, 16000)
+                
             # Write processed audio to clean path
             sf.write(clean_file_path, processed, 16000)
             # For consistency, set a placeholder success dict
@@ -160,14 +173,28 @@ def get_audio_files():
         raise HTTPException(status_code=500, detail=f"Failed to fetch Cloudinary files: {str(e)}")
 
 @router.websocket("/audio/stream")
-async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool = False, model: str = "noisereduce"):
+async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool = False, model: str = "noisereduce", voice_boost: bool = False):
     await websocket.accept()
-    print(f"WebSocket connection established for real-time audio stream. Suppression: {suppress}, Model: {model}")
+    print(f"WebSocket connection established for real-time audio stream. Suppression: {suppress}, Model: {model}, Voice Boost: {voice_boost}")
 
     # Reset ONNX stateful buffers at the start of every new stream session
     # so LSTM/GRU hidden states don't bleed across disconnects/reconnects.
     if model not in ("noisereduce",):
         onnx_service.reset_states(model)
+
+    # Filter state for stateful voice boost
+    vb_state = None
+    if voice_boost:
+        from scipy.signal import lfilter_zi, butter
+        nyq = 0.5 * 16000
+        b_hp, a_hp = butter(2, 80.0 / nyq, btype='high')
+        b_bp, a_bp = butter(2, [1000.0 / nyq, 3500.0 / nyq], btype='band')
+        vb_state = {
+            "hp": lfilter_zi(b_hp, a_hp) * 0.0,
+            "bp": lfilter_zi(b_bp, a_bp) * 0.0,
+            "b_hp": b_hp, "a_hp": a_hp,
+            "b_bp": b_bp, "a_bp": a_bp
+        }
 
     # Update microphone status in session to streaming
     session.current_metrics["microphone_status"] = "streaming"
@@ -227,6 +254,19 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
                         else:
                             # ONNX model inference
                             cleaned_chunk = onnx_service.process_chunk(audio_chunk.astype(np.float32), model)
+                        
+                        # Apply stateful voice boost if enabled
+                        if voice_boost and vb_state is not None:
+                            try:
+                                from scipy.signal import lfilter
+                                y_hp, vb_state["hp"] = lfilter(vb_state["b_hp"], vb_state["a_hp"], cleaned_chunk.astype(np.float32), zi=vb_state["hp"])
+                                y_presence, vb_state["bp"] = lfilter(vb_state["b_bp"], vb_state["a_bp"], y_hp, zi=vb_state["bp"])
+                                cleaned_chunk = y_hp + 0.6 * y_presence
+                                peak = np.max(np.abs(cleaned_chunk))
+                                if peak > 1e-5:
+                                    cleaned_chunk = (cleaned_chunk / peak) * 0.89
+                            except Exception as vb_err:
+                                print(f"Error in real-time voice boost: {vb_err}")
                     else:
                         cleaned_chunk = audio_chunk
                     
@@ -254,7 +294,8 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
                         
                         def perform_analysis(noisy_sig, clean_sig):
                             try:
-                                noise_type = NoiseClassificationService.classify_noise(y=noisy_sig, sr=16000)
+                                detected_noises, noise_breakdown = NoiseClassificationService.classify_noise_with_scores(y=noisy_sig, sr=16000)
+                                dominant_noise = detected_noises[0] if detected_noises else "Other"
                                 quality_metrics = AudioQualityService.analyze_quality(y=noisy_sig, sr=16000)
                                 
                                 if suppress:
@@ -272,32 +313,44 @@ async def audio_stream(websocket: WebSocket, suppress: bool = True, save: bool =
                                 
                                 # Log alert if specific noise detected (prevent spamming: rate-limit to once per 10s)
                                 current_time = time.time()
-                                if noise_type != "Other" and (noise_type != last_detected_noise[0] or (current_time - last_alert_time[0]) > 10):
-                                    session.add_alert(f"Live Mic: Detected '{noise_type}' background noise.")
+                                if dominant_noise != "Other" and (dominant_noise != last_detected_noise[0] or (current_time - last_alert_time[0]) > 10):
+                                    session.add_alert(f"Live Mic: Detected '{dominant_noise}' background noise.")
                                     last_alert_time[0] = current_time
-                                    last_detected_noise[0] = noise_type
+                                    last_detected_noise[0] = dominant_noise
+                                
+                                return {
+                                    "noise_type": dominant_noise,
+                                    "noise_breakdown": noise_breakdown,
+                                    "noise_score": quality_metrics["noise_level"],
+                                    "voice_clarity": quality_metrics["voice_clarity"],
+                                    "audio_quality": quality_metrics["audio_quality"],
+                                    "stoi_score": stoi_score
+                                }
                             except Exception as analysis_err:
                                 print(f"Error in background stream analysis: {str(analysis_err)}")
+                                return None
                         
                         # Schedule in thread pool and send metrics back to frontend
                         async def run_analysis_and_push(noisy_sig, clean_sig):
-                            await asyncio.to_thread(perform_analysis, noisy_sig, clean_sig)
-                            # Push live metrics back to frontend as a JSON text frame
-                            try:
-                                if websocket.client_state.name == "CONNECTED":
+                            analysis_res = await asyncio.to_thread(perform_analysis, noisy_sig, clean_sig)
+                            if analysis_res and websocket.client_state.name == "CONNECTED":
+                                # Push live metrics back to frontend as a JSON text frame
+                                try:
                                     import json
                                     metrics_payload = json.dumps({
                                         "type": "metrics",
-                                        "noise_score": session.current_metrics.get("noise_score", 0),
-                                        "voice_clarity": session.current_metrics.get("voice_clarity", 100),
-                                        "audio_quality": session.current_metrics.get("audio_quality", 100),
-                                        "stoi_score": session.current_metrics.get("stoi_score", 1.0),
+                                        "noise_score": analysis_res["noise_score"],
+                                        "voice_clarity": analysis_res["voice_clarity"],
+                                        "audio_quality": analysis_res["audio_quality"],
+                                        "stoi_score": analysis_res["stoi_score"],
                                         "latency": session.current_metrics.get("latency", 0),
+                                        "noise_type": analysis_res["noise_type"],
+                                        "noise_breakdown": analysis_res["noise_breakdown"]
                                     })
                                     await websocket.send_text(metrics_payload)
-                            except Exception as push_err:
-                                print(f"Failed to push metrics to frontend: {push_err}")
-
+                                except Exception as push_err:
+                                    print(f"Failed to push metrics to frontend: {push_err}")
+ 
                         asyncio.create_task(run_analysis_and_push(analysis_signal, analysis_clean_signal))
                         
                         # Reset buffer to keep sliding window context

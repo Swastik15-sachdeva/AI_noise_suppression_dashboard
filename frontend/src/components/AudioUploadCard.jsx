@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { audioService } from '../services/api';
+import CustomAudioPlayer from './CustomAudioPlayer';
 
 const AudioUploadCard = ({ onUploadSuccess, selectedModel }) => {
     const [file, setFile] = useState(null);
@@ -7,6 +8,7 @@ const AudioUploadCard = ({ onUploadSuccess, selectedModel }) => {
     const [error, setError] = useState(null);
     const [results, setResults] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [voiceBoost, setVoiceBoost] = useState(true);
     const fileInputRef = useRef(null);
 
     const handleFileChange = (e) => {
@@ -24,7 +26,7 @@ const AudioUploadCard = ({ onUploadSuccess, selectedModel }) => {
             setUploading(true);
             setError(null);
 
-            const response = await audioService.uploadAudio(file, selectedModel);
+            const response = await audioService.uploadAudio(file, selectedModel, voiceBoost);
             const data = response.data;
 
             if (data.status === 'success') {
@@ -174,22 +176,41 @@ const AudioUploadCard = ({ onUploadSuccess, selectedModel }) => {
                 </div>
 
                 {file && !results && (
-                    <button
-                        onClick={handleUpload}
-                        disabled={uploading}
-                        className={`w-full mt-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all duration-300 shadow-md ${
-                            uploading 
-                                ? 'bg-[#141635] text-slate-500 cursor-not-allowed border border-[#141635] animate-pulse' 
-                                : 'bg-purple-600 hover:bg-purple-500 hover:scale-[1.01] active:scale-[0.99] shadow-[0_0_15px_rgba(168,85,247,0.4)] text-purple-50'
-                        }`}
-                    >
-                        {uploading ? (
-                            <span className="flex items-center justify-center gap-2">
-                                <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                AI model analyzing audio...
-                            </span>
-                        ) : 'Start Suppression & Analysis'}
-                    </button>
+                    <div className="mt-4 flex flex-col gap-3">
+                        {/* Voice Boost Toggle */}
+                        <div className="flex items-center justify-between p-3.5 rounded-xl border border-[#141635] bg-[#040510]/30 select-none">
+                            <div className="flex flex-col text-left">
+                                <span className="text-xs font-bold text-slate-200">Voice Boost</span>
+                                <span className="text-[9px] text-slate-500 mt-0.5 font-medium">Enhance vocal presence and equalize output</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={voiceBoost}
+                                    onChange={(e) => setVoiceBoost(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-9 h-5 bg-[#141635] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 peer-checked:after:bg-cyan-400 after:border-none after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-950/55 border border-slate-700/20 peer-checked:border-cyan-500/50"></div>
+                            </label>
+                        </div>
+
+                        <button
+                            onClick={handleUpload}
+                            disabled={uploading}
+                            className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all duration-300 shadow-md ${
+                                uploading 
+                                    ? 'bg-[#141635] text-slate-500 cursor-not-allowed border border-[#141635] animate-pulse' 
+                                    : 'bg-purple-600 hover:bg-purple-500 hover:scale-[1.01] active:scale-[0.99] shadow-[0_0_15px_rgba(168,85,247,0.4)] text-purple-50'
+                            }`}
+                        >
+                            {uploading ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                    AI model analyzing audio...
+                                </span>
+                            ) : 'Start Suppression & Analysis'}
+                        </button>
+                    </div>
                 )}
 
                 {error && (
@@ -263,12 +284,12 @@ const AudioUploadCard = ({ onUploadSuccess, selectedModel }) => {
 
                     <div className="space-y-3.5">
                         <div className="bg-[#040510]/60 p-2.5 rounded-xl border border-[#141635]">
-                            <span className="text-[9px] uppercase tracking-widest text-slate-400 block mb-1 font-bold">Original Noisy Audio</span>
-                            <audio src={results.originalAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
+                            <span className="text-[9px] uppercase tracking-widest text-slate-400 block mb-1.5 font-bold">Original Noisy Audio</span>
+                            <CustomAudioPlayer src={results.originalAudioUrl} theme="pink" />
                         </div>
                         <div className="bg-[#040510]/60 p-2.5 rounded-xl border border-cyan-950/40 shadow-[0_0_10px_rgba(6,182,212,0.05)]">
-                            <span className="text-[9px] uppercase tracking-widest text-cyan-400 glow-text-cyan block mb-1 font-bold">Cleaned Speech ({results.modelUsed || 'noisereduce'} Output)</span>
-                            <audio src={results.cleanAudioUrl} controls className="w-full h-7 scale-95 origin-left" />
+                            <span className="text-[9px] uppercase tracking-widest text-cyan-400 glow-text-cyan block mb-1.5 font-bold">Cleaned Speech ({results.modelUsed || 'noisereduce'} Output)</span>
+                            <CustomAudioPlayer src={results.cleanAudioUrl} theme="cyan" />
                         </div>
                     </div>
                 </div>
